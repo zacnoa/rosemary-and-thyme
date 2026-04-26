@@ -1,0 +1,6 @@
+[submodule "rosemary-and-thyme-frontend"]
+	path = rosemary-and-thyme-frontend
+	url = git@github.com:zacnoa/rosemary-and-thyme-frontend.git
+[submodule "rosemary-and-thyme-backend"]
+	path = rosemary-and-thyme-backend
+	url = git@github.com:zacnoa/rosemary-and-thyme-backend.git
