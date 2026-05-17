@@ -1,10 +1,11 @@
 package rosemary_and_thyme.backend.repositories.recipes
 
-import rosemary_and_thyme.backend.models.public.tables.records.HeroImagesRecord
-import rosemary_and_thyme.backend.models.public.tables.records.IngredientsRecord
-import rosemary_and_thyme.backend.models.public.tables.records.InstructionImagesRecord
-import rosemary_and_thyme.backend.models.public.tables.records.InstructionsRecord
-import rosemary_and_thyme.backend.models.public.tables.records.RecipesRecord
+import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.HeroImagesRecord
+import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.IngredientsRecord
+import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.InstructionImagesRecord
+import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.InstructionsRecord
+import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.RecipesRecord
+import rosemary_and_thyme.backend.models.ResponsePayload
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
@@ -50,7 +51,7 @@ data class RecipeDTO(
     val ingredientsOrder: List<UUID>,
     val instructionsOrder: List<UUID>,
     val heroImagesOrder: List<UUID>                   // UUID[]
-)
+): ResponsePayload
 
 class Utils {
 

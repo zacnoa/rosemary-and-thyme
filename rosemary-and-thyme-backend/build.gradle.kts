@@ -78,11 +78,15 @@ jooq {
             }
             target {
                 directory = "src/main/kotlin"
-                packageName = "rosemary_and_thyme.backend.models"
+                packageName = "rosemary_and_thyme.backend.jooqgenerated"
             }
         }
     }
 }
+
+/**
+ *
 tasks.named("compileKotlin"){
     dependsOn(tasks.named("jooqCodegen"))
 }
+ */
