@@ -1,45 +1,57 @@
 package rosemary_and_thyme.backend.repositories.recipes
 
-import rosemary_and_thyme.backend.jooqgenerated.public.tables.HeroImages.Companion.HERO_IMAGES
-import rosemary_and_thyme.backend.jooqgenerated.public.tables.Ingredients.Companion.INGREDIENTS
-import rosemary_and_thyme.backend.jooqgenerated.public.tables.InstructionImages.Companion.INSTRUCTION_IMAGES
-import rosemary_and_thyme.backend.jooqgenerated.public.tables.Instructions.Companion.INSTRUCTIONS
-import rosemary_and_thyme.backend.jooqgenerated.public.tables.Recipes.Companion.RECIPES
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.HeroImagesRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.IngredientsRecord
-import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.InstructionImagesRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.InstructionsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.RecipesRecord
-import java.util.UUID
+import rosemary_and_thyme.backend.models.ApiResponse
+import java.util.*
 
- fun RecipeRepository.fetchRecipeBase(recipeId: UUID): RecipesRecord? =
-    dsl.selectFrom(RECIPES)
-        .where(RECIPES.ID.eq(recipeId))
-        .fetchOneInto(RecipesRecord::class.java)
+fun RecipeRepository.fetchRecipe(id: UUID): ApiResponse<RecipeDTO> = runBlocking {
+    coroutineScope {
+        val recipeDeferred: Deferred<RecipesRecord?> = async(Dispatchers.IO) { fetchRecipeBase(id) }
+        val ingredientsDeferred: Deferred<List<IngredientsRecord>> = async(Dispatchers.IO) { fetchIngredients(id) }
+        val instructionsDeferred: Deferred<List<InstructionsRecord>> = async(Dispatchers.IO) { fetchInstructions(id) }
+        val heroImagesDeferred: Deferred<List<HeroImagesRecord>> = async(Dispatchers.IO) { fetchHeroImages(id) }
 
+        val recipe = recipeDeferred.await() ?: throw NoSuchElementException("Recipe $id not found")
+        val ingredients = ingredientsDeferred.await()
+        val instructions = instructionsDeferred.await()
+        val heroImages = heroImagesDeferred.await()
 
+        val instructionImages = fetchInstructionImages(instructions.mapNotNull { it.id })
 
- fun RecipeRepository.fetchIngredients(recipeId: UUID): List<IngredientsRecord> =
-    dsl.selectFrom(INGREDIENTS)
-        .where(INGREDIENTS.RECIPE_ID.eq(recipeId))
-        .orderBy(INGREDIENTS.INDEX)
-        .fetchInto(IngredientsRecord::class.java)
+        ApiResponse(
+            Utils.buildRecipeDTO(
+                ingredients = ingredients,
+                instructions = instructions,
+                heroImages = heroImages,
+                recipe = recipe,
+                instructionImages = instructionImages
+            ),
+            error = null
+        )
+    }
+}
 
- fun RecipeRepository.fetchInstructions(recipeId: UUID): List<InstructionsRecord> =
-    dsl.selectFrom(INSTRUCTIONS)
-        .where(INSTRUCTIONS.RECIPE_ID.eq(recipeId))
-        .orderBy(INSTRUCTIONS.INDEX)
-        .fetchInto(InstructionsRecord::class.java)
+suspend fun RecipeRepository.saveRecipe(recipe: RecipeDTO) = coroutineScope {
+    val recipeId = saveRecipeBase(recipe)
+    val saveIngredientsJob = async(Dispatchers.IO) {
+        saveIngredients(recipeId, recipe.ingredients, recipe.ingredientsOrder)
+    }
+    val saveHeroImagesJob = async(Dispatchers.IO) {
+        saveHeroImages(recipeId, recipe.images, recipe.heroImagesOrder)
+    }
+    val saveInstructionsJob = async(Dispatchers.IO) {
+        saveInstructions(recipeId, recipe.instructions, recipe.instructionsOrder, recipe.images)
+    }
+    saveIngredientsJob.await()
+    saveHeroImagesJob.await()
+    saveInstructionsJob.await()
+}
 
- fun RecipeRepository.fetchHeroImages(recipeId: UUID): List<HeroImagesRecord> =
-    dsl.selectFrom(HERO_IMAGES)
-        .where(HERO_IMAGES.RECIPE_ID.eq(recipeId))
-        .orderBy(HERO_IMAGES.INDEX)
-        .fetchInto(HeroImagesRecord::class.java)
-
- fun RecipeRepository.fetchInstructionImages(instructionIds: List<UUID>): Map<UUID, List<InstructionImagesRecord>> =
-    dsl.selectFrom(INSTRUCTION_IMAGES)
-        .where(INSTRUCTION_IMAGES.INSTRUCTION_ID.`in`(instructionIds))
-        .orderBy(INSTRUCTION_IMAGES.INDEX)
-        .fetchInto(InstructionImagesRecord::class.java)
-        .groupBy { it.instructionId }

@@ -27,7 +27,8 @@ dependencies {
     implementation("org.jooq:jooq:3.21.2")
     implementation("org.springframework.boot:spring-boot-starter-jooq")
 
-    implementation("com.cloudinary:kotlin-url-gen:1.11.0")
+    implementation("com.cloudinary:cloudinary-http5:2.3.2")
+
     runtimeOnly("org.postgresql:postgresql")
     jooqCodegen("org.postgresql:postgresql")
 

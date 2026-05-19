@@ -5,3 +5,8 @@ spring:
     url: jdbc:postgresql://localhost:432/recipes_db
     username: noa
     password: noa
+
+cloudinary:
+  cloud-name: dfgde179c
+  api-key: 285172359523528
+  api-secret: 8hVCegcnYIXpQkiCw62guZCbLwQ

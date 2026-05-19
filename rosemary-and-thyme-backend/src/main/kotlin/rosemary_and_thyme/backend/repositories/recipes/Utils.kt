@@ -53,6 +53,10 @@ data class RecipeDTO(
     val heroImagesOrder: List<UUID>                   // UUID[]
 ): ResponsePayload
 
+data class RecipeQueryResponseDTO(
+   val message:String
+): ResponsePayload
+
 class Utils {
 
     companion object {
