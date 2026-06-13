@@ -8,18 +8,37 @@ import rosemary_and_thyme.backend.jooqgenerated.public.tables.InstructionImages.
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.Instructions.Companion.INSTRUCTIONS
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.Recipes.Companion.RECIPES
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.*
+import rosemary_and_thyme.backend.jooqgenerated.public.tables.references.IMAGES
 import java.util.*
+import kotlin.collections.partition
+
+
+/**
+ * Repository layer
+ *
+ * Contains all database queries for the specific domain.
+ * The member functions are not declared as suspend because
+ * JOOQ functions are blocking.
+ * These functions should be called by a Dispatchers.IO if parallelism is needed
+ *
+ */
 
 @Repository
 class RecipeRepository(val dsl: DSLContext) {
 
 
-    fun RecipeRepository.saveRecipeBase(dto: RecipeDTO): UUID {
+    fun saveRecipeBase(dto: RecipeDTO): UUID {
+        /**
+         * check if recipe with given id exists
+         */
         val existingId = dsl.select(RECIPES.ID)
             .from(RECIPES)
             .where(RECIPES.ID.eq(dto.id))
             .fetchOne(RECIPES.ID)
 
+        /**
+         *  if there is a recipe update existing row and return id
+         */
         return if (existingId != null) {
             dsl.update(RECIPES)
                 .set(RECIPES.NAME, dto.name)
@@ -30,8 +49,12 @@ class RecipeRepository(val dsl: DSLContext) {
                 .set(RECIPES.SIDE_NOTES, dto.sideNotes)
                 .where(RECIPES.ID.eq(dto.id))
                 .execute()
-            existingId // vrati postojeći ID
-        } else {
+            existingId
+        }
+        /**
+         * if there is no recipe by that id insert new recipe and return the new id
+         */
+        else {
             dsl.insertInto(RECIPES)
                 .set(RECIPES.USER_ID, dto.userId)
                 .set(RECIPES.USER_NAME, dto.userName)
@@ -41,11 +64,10 @@ class RecipeRepository(val dsl: DSLContext) {
                 .set(RECIPES.DIFFICULTY, dto.difficulty)
                 .set(RECIPES.PORTIONS, dto.portions)
                 .set(RECIPES.SIDE_NOTES, dto.sideNotes)
-                .set(RECIPES.LIKES, 0L)
+                .set(RECIPES.LIKES, 0)
                 .returningResult(RECIPES.ID)
                 .fetchOne()
                 ?.get(RECIPES.ID) ?: throw IllegalStateException("Failed to insert recipe")
-            // baza generira novi ID
         }
     }
 
@@ -54,6 +76,9 @@ class RecipeRepository(val dsl: DSLContext) {
         ingredients: Map<UUID, IngredientDTO>,
         order: List<UUID>
     ) {
+        /**
+         * fetch existing ids for checking with client state
+         */
         val existingIds = dsl.select(INGREDIENTS.ID)
             .from(INGREDIENTS)
             .where(INGREDIENTS.RECIPE_ID.eq(recipeId))
@@ -61,7 +86,10 @@ class RecipeRepository(val dsl: DSLContext) {
 
         val (toUpdate, toInsert) = ingredients.values.partition { it.id in existingIds }
 
-        // batch update
+        /**
+         * update all ingredients
+         * we use batch to avoid unnecessary calls to the database
+         */
         if (toUpdate.isNotEmpty()) {
             dsl.batch(
                 toUpdate.map { ing ->
@@ -77,23 +105,28 @@ class RecipeRepository(val dsl: DSLContext) {
             ).execute()
         }
 
-        // batch insert, baza generira ID
+        /**
+         * insert new recipes
+         * we don't send ingredient id because we want the database to be the sole UUID generator
+         */
         if (toInsert.isNotEmpty()) {
-            dsl.batch(
+            val result = dsl.batch(
                 toInsert.map { ing ->
-                    val index = order.indexOf(ing.id) // temp ID je još uvijek u order listi
+                    val index = order.indexOf(ing.id)
                     dsl.insertInto(INGREDIENTS)
                         .set(INGREDIENTS.RECIPE_ID, recipeId)
                         .set(INGREDIENTS.NAME, ing.name)
                         .set(INGREDIENTS.AMOUNT, ing.amount)
                         .set(INGREDIENTS.MEASURING_UNIT, ing.measuringUnit)
                         .set(INGREDIENTS.INDEX, index)
-                    // ne šalješ ID → baza generira
                 }
             ).execute()
+            check(result.any { it == 1 }) { "Error while inserting ingredients" }
         }
 
-        // obrisi koji više ne postoje
+        /**
+         * delete ingredients
+         */
         val toDelete = existingIds - ingredients.keys
         if (toDelete.isNotEmpty()) {
             dsl.deleteFrom(INGREDIENTS)
@@ -109,13 +142,21 @@ class RecipeRepository(val dsl: DSLContext) {
         order: List<UUID>,
         images: Map<UUID, RecipeImageDTO>
     ) {
+
+        /**
+         * fetch existing id for cheking
+         */
         val existingIds = dsl.select(INSTRUCTIONS.ID)
             .from(INSTRUCTIONS)
             .where(INSTRUCTIONS.RECIPE_ID.eq(recipeId))
             .fetchSet(INSTRUCTIONS.ID)
 
+
         val (toUpdate, toInsert) = instructions.values.partition { it.id in existingIds }
 
+        /**
+         * update existing instructions
+         */
         if (toUpdate.isNotEmpty()) {
             dsl.batch(
                 toUpdate.map { inst ->
@@ -129,7 +170,9 @@ class RecipeRepository(val dsl: DSLContext) {
             ).execute()
         }
 
-        // za insert trebamo prave ID-ove koje vrati baza da bismo mogli saveati instruction images
+        /**
+         * insert new instructions
+         */
         if (toInsert.isNotEmpty()) {
             toInsert.forEach { inst ->
                 val index = order.indexOf(inst.id)
@@ -145,17 +188,22 @@ class RecipeRepository(val dsl: DSLContext) {
             }
         }
 
-        // za postojeće updateaj instruction images
+        /**
+         * update image for existing images
+         */
         toUpdate.forEach { inst ->
             saveInstructionImages(inst.id, inst.images, images)
         }
 
+        /**
+         * cascade setting on instruction Images ensures they are deleted after deleting corresponding instruction
+         */
         val toDelete = existingIds - instructions.keys
         if (toDelete.isNotEmpty()) {
             dsl.deleteFrom(INSTRUCTIONS)
                 .where(INSTRUCTIONS.RECIPE_ID.eq(recipeId))
                 .and(INSTRUCTIONS.ID.`in`(toDelete))
-                .execute() // CASCADE obriše instruction_images
+                .execute()
         }
     }
 
@@ -164,45 +212,55 @@ class RecipeRepository(val dsl: DSLContext) {
         images: Map<UUID, RecipeImageDTO>,
         order: List<UUID>
     ) {
-        val existingIds = dsl.select(HERO_IMAGES.ID)
-            .from(HERO_IMAGES)
-            .where(HERO_IMAGES.RECIPE_ID.eq(recipeId))
-            .fetchSet(HERO_IMAGES.ID)
-
+        val existingIds = fetchHeroImageIds(recipeId)
         val heroImages = order.mapNotNull { images[it] }
         val (toUpdate, toInsert) = heroImages.partition { it.id in existingIds }
 
+        // UPDATE - dvije tablice
         if (toUpdate.isNotEmpty()) {
+            // Update index u hero_images
             dsl.batch(
                 toUpdate.map { img ->
                     val index = order.indexOf(img.id)
                     dsl.update(HERO_IMAGES)
-                        .set(HERO_IMAGES.URL, img.url)
                         .set(HERO_IMAGES.INDEX, index)
-                        .where(HERO_IMAGES.ID.eq(img.id))
+                        .where(HERO_IMAGES.IMAGE_ID.eq(img.id))
                         .and(HERO_IMAGES.RECIPE_ID.eq(recipeId))
                 }
             ).execute()
-        }
-
-        if (toInsert.isNotEmpty()) {
+            // Update url u images
             dsl.batch(
-                toInsert.map { img ->
-                    val index = order.indexOf(img.id)
-                    dsl.insertInto(HERO_IMAGES)
-                        .set(HERO_IMAGES.RECIPE_ID, recipeId)
-                        .set(HERO_IMAGES.URL, img.url)
-                        .set(HERO_IMAGES.INDEX, index)
-                    // ne šalješ ID → baza generira
+                toUpdate.map { img ->
+                    dsl.update(IMAGES)
+                        .set(IMAGES.URL, img.url)
+                        .where(IMAGES.ID.eq(img.id))
                 }
             ).execute()
         }
 
+        // INSERT - dvije tablice
+        if (toInsert.isNotEmpty()) {
+            toInsert.forEachIndexed { _, img ->
+                val index = order.indexOf(img.id)
+                // 1. Insert u images, dobijes novi image_id
+                val imageId = dsl.insertInto(IMAGES)
+                    .set(IMAGES.URL, img.url)
+                    .returningResult(IMAGES.ID)
+                    .fetchOne()!!.value1()
+                // 2. Insert u hero_images s tim image_id
+                dsl.insertInto(HERO_IMAGES)
+                    .set(HERO_IMAGES.IMAGE_ID, imageId)
+                    .set(HERO_IMAGES.RECIPE_ID, recipeId)
+                    .set(HERO_IMAGES.INDEX, index)
+                    .execute()
+            }
+        }
+
+        // DELETE - CASCADE ce obrisati hero_images automatski
         val toDelete = existingIds - order.toSet()
         if (toDelete.isNotEmpty()) {
-            dsl.deleteFrom(HERO_IMAGES)
-                .where(HERO_IMAGES.RECIPE_ID.eq(recipeId))
-                .and(HERO_IMAGES.ID.`in`(toDelete))
+            dsl.deleteFrom(IMAGES)
+                .where(IMAGES.ID.`in`(toDelete))
                 .execute()
         }
     }
@@ -212,50 +270,65 @@ class RecipeRepository(val dsl: DSLContext) {
         imageIds: List<UUID>,
         images: Map<UUID, RecipeImageDTO>
     ) {
-        val existingIds = dsl.select(INSTRUCTION_IMAGES.ID)
-            .from(INSTRUCTION_IMAGES)
-            .where(INSTRUCTION_IMAGES.INSTRUCTION_ID.eq(instructionId))
-            .fetchSet(INSTRUCTION_IMAGES.ID)
-
+        /**
+         * Here we cannot reuse fetchInstructionImages because the type Map<UUID, List<String>> loses the id information of individual images
+         */
+        val existingIds = fetchInstructionImageIds(instructionId)
         val instructionImages = imageIds.mapNotNull { images[it] }
         val (toUpdate, toInsert) = instructionImages.partition { it.id in existingIds }
 
+        // UPDATE
         if (toUpdate.isNotEmpty()) {
+            // Update index u instruction_images
             dsl.batch(
                 toUpdate.map { img ->
                     val index = imageIds.indexOf(img.id)
                     dsl.update(INSTRUCTION_IMAGES)
-                        .set(INSTRUCTION_IMAGES.URL, img.url)
                         .set(INSTRUCTION_IMAGES.INDEX, index)
-                        .where(INSTRUCTION_IMAGES.ID.eq(img.id))
+                        .where(INSTRUCTION_IMAGES.IMAGE_ID.eq(img.id))
                         .and(INSTRUCTION_IMAGES.INSTRUCTION_ID.eq(instructionId))
                 }
             ).execute()
-        }
-
-        if (toInsert.isNotEmpty()) {
+            // Update url u images
             dsl.batch(
-                toInsert.map { img ->
-                    val index = imageIds.indexOf(img.id)
-                    dsl.insertInto(INSTRUCTION_IMAGES)
-                        .set(INSTRUCTION_IMAGES.INSTRUCTION_ID, instructionId)
-                        .set(INSTRUCTION_IMAGES.URL, img.url)
-                        .set(INSTRUCTION_IMAGES.INDEX, index)
-                    // ne šalješ ID → baza generira
+                toUpdate.map { img ->
+                    dsl.update(IMAGES)
+                        .set(IMAGES.URL, img.url)
+                        .where(IMAGES.ID.eq(img.id))
                 }
             ).execute()
         }
 
+        // INSERT
+        if (toInsert.isNotEmpty()) {
+            toInsert.forEach { img ->
+                val index = imageIds.indexOf(img.id)
+                // 1. Insert u images
+                val imageId = dsl.insertInto(IMAGES)
+                    .set(IMAGES.URL, img.url)
+                    .returningResult(IMAGES.ID)
+                    .fetchOne()!!.value1()
+                // 2. Insert u instruction_images s tim image_id
+                dsl.insertInto(INSTRUCTION_IMAGES)
+                    .set(INSTRUCTION_IMAGES.IMAGE_ID, imageId)
+                    .set(INSTRUCTION_IMAGES.INSTRUCTION_ID, instructionId)
+                    .set(INSTRUCTION_IMAGES.INDEX, index)
+                    .execute()
+            }
+        }
+
+        // DELETE - CASCADE briše instruction_images automatski
         val toDelete = existingIds - imageIds.toSet()
         if (toDelete.isNotEmpty()) {
-            dsl.deleteFrom(INSTRUCTION_IMAGES)
-                .where(INSTRUCTION_IMAGES.INSTRUCTION_ID.eq(instructionId))
-                .and(INSTRUCTION_IMAGES.ID.`in`(toDelete))
+            dsl.deleteFrom(IMAGES)
+                .where(IMAGES.ID.`in`(toDelete))
                 .execute()
         }
     }
 
-
+    /**
+     * Queries for fetching  recipe by id
+     */
     fun fetchRecipeBase(recipeId: UUID): RecipesRecord? =
         dsl.selectFrom(RECIPES)
             .where(RECIPES.ID.eq(recipeId))
@@ -273,33 +346,63 @@ class RecipeRepository(val dsl: DSLContext) {
             .orderBy(INSTRUCTIONS.INDEX)
             .fetchInto(InstructionsRecord::class.java)
 
-    fun fetchHeroImages(recipeId: UUID): List<HeroImagesRecord> =
-        dsl.selectFrom(HERO_IMAGES)
+    fun fetchHeroImages(recipeId: UUID): Map<UUID, String> =
+        dsl.select(HERO_IMAGES.IMAGE_ID, IMAGES.URL)
+            .from(HERO_IMAGES)
+            .join(IMAGES)
+            .on(HERO_IMAGES.IMAGE_ID.eq(IMAGES.ID))
             .where(HERO_IMAGES.RECIPE_ID.eq(recipeId))
             .orderBy(HERO_IMAGES.INDEX)
-            .fetchInto(HeroImagesRecord::class.java)
+            .fetch()
+            .associate { it[HERO_IMAGES.IMAGE_ID]!! to it[IMAGES.URL]!! }
 
-    fun fetchInstructionImages(instructionIds: List<UUID>): Map<UUID, List<InstructionImagesRecord>> =
-        dsl.selectFrom(INSTRUCTION_IMAGES)
+    fun fetchInstructionImages(instructionIds: List<UUID>): Map<UUID, List<Pair<UUID,String>>> =
+        dsl.select(INSTRUCTION_IMAGES.INSTRUCTION_ID, INSTRUCTION_IMAGES.IMAGE_ID, IMAGES.URL)
+            .from(INSTRUCTION_IMAGES)
+            .join(IMAGES).on(INSTRUCTION_IMAGES.IMAGE_ID.eq(IMAGES.ID))
             .where(INSTRUCTION_IMAGES.INSTRUCTION_ID.`in`(instructionIds))
             .orderBy(INSTRUCTION_IMAGES.INDEX)
-            .fetchInto(InstructionImagesRecord::class.java)
-            .groupBy { it.instructionId }
+            .fetch()
+            .groupBy(
+                { it[INSTRUCTION_IMAGES.INSTRUCTION_ID]!! },
+                { it[INSTRUCTION_IMAGES.IMAGE_ID]!! to it[IMAGES.URL]!! }
+            )
+
+    /**
+     * May cause problems with different combination of columns
+     */
+    fun fetchAllImageIds(recipeId: UUID): List<UUID> {
+        val heroImage = dsl.select(HERO_IMAGES.IMAGE_ID)
+            .from(HERO_IMAGES)
+            .join(IMAGES)
+            .on(HERO_IMAGES.IMAGE_ID.eq(IMAGES.ID))
+            .where((HERO_IMAGES.RECIPE_ID).eq(recipeId))
+
+        val instructionImages = dsl.select(INSTRUCTION_IMAGES.IMAGE_ID)
+            .from(INSTRUCTION_IMAGES)
+            .join(INSTRUCTIONS).on(INSTRUCTION_IMAGES.INSTRUCTION_ID.eq(INSTRUCTIONS.ID))
+            .join(IMAGES).on(INSTRUCTION_IMAGES.IMAGE_ID.eq(IMAGES.ID))
+            .where(INSTRUCTIONS.RECIPE_ID.eq(recipeId))
+
+        return heroImage.union(instructionImages)
+            .fetch(HERO_IMAGES.IMAGE_ID)
+            .filterNotNull()
+
+    }
 
     fun fetchHeroImageIds(recipeId: UUID): Set<UUID> =
-        dsl.select(HERO_IMAGES.ID)
+        dsl.select(HERO_IMAGES.IMAGE_ID)
             .from(HERO_IMAGES)
             .where(HERO_IMAGES.RECIPE_ID.eq(recipeId))
-            .fetchSet(HERO_IMAGES.ID)
+            .fetch(HERO_IMAGES.IMAGE_ID)
             .filterNotNull()
             .toSet()
 
-    fun fetchAllInstructionImageIds(recipeId: UUID): Set<UUID> =
-        dsl.select(INSTRUCTION_IMAGES.ID)
+    fun fetchInstructionImageIds(instructionId: UUID): Set<UUID> =
+        dsl.select(INSTRUCTION_IMAGES.IMAGE_ID)
             .from(INSTRUCTION_IMAGES)
-            .join(INSTRUCTIONS).on(INSTRUCTION_IMAGES.INSTRUCTION_ID.eq(INSTRUCTIONS.ID))
-            .where(INSTRUCTIONS.RECIPE_ID.eq(recipeId))
-            .fetchSet(INSTRUCTION_IMAGES.ID)
+            .where(INSTRUCTION_IMAGES.INSTRUCTION_ID.eq(instructionId))
+            .fetch(INSTRUCTION_IMAGES.IMAGE_ID)
             .filterNotNull()
             .toSet()
 }

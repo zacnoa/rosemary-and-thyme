@@ -14,10 +14,16 @@ import kotlin.collections.mapNotNull
 import kotlin.collections.sortedBy
 import kotlin.let
 
+/**
+ * Data Classes that mirror types on the frontend
+ *
+ * JOOQ will always add nullable to columns that have default values because of that
+ * we use !! operator to declare not null property that is guaranteed by default DDL keyword
+ */
 
 data class RecipeImageDTO(
     val id: UUID,
-    val url: String
+    val url: String?
 )
 
 data class IngredientDTO(
@@ -30,7 +36,7 @@ data class IngredientDTO(
 data class InstructionDTO(
     val id: UUID,
     val text: String,
-    val images: List<UUID>  // frontend prima UUID[], samo id-eve slika
+    val images: List<UUID>
 )
 
 data class RecipeDTO(
@@ -45,40 +51,41 @@ data class RecipeDTO(
     val cookTime: String,
     val difficulty: Int,
     val sideNotes: String?,
-    val images: Map<UUID, RecipeImageDTO>,       // Record<UUID, RecipeImage>
-    val ingredients: Map<UUID, IngredientDTO>,   // Record<UUID, Ingredient>
-    val instructions: Map<UUID, InstructionDTO>, // Record<UUID, Instruction>
+    val images: Map<UUID, RecipeImageDTO>,
+    val ingredients: Map<UUID, IngredientDTO>,
+    val instructions: Map<UUID, InstructionDTO>,
     val ingredientsOrder: List<UUID>,
     val instructionsOrder: List<UUID>,
-    val heroImagesOrder: List<UUID>                   // UUID[]
+    val heroImagesOrder: List<UUID>
 ): ResponsePayload
 
 data class RecipeQueryResponseDTO(
    val message:String
 ): ResponsePayload
 
-class Utils {
 
+class RecipeUtils {
+
+    /**
+     * util for building RecipeDTO from a database rows
+     */
     companion object {
         fun buildRecipeDTO(
             recipe: RecipesRecord,
             ingredients: List<IngredientsRecord>,
             instructions: List<InstructionsRecord>,
-            instructionImages: Map<UUID, List<InstructionImagesRecord>>,
-            heroImages: List<HeroImagesRecord>
+            instructionImages: Map<UUID, List<Pair<UUID,String>>>,
+            //Change to recieve only List<UUID> representing those images
+            heroImages: Map<UUID,String>
         ): RecipeDTO {
 
             val imagesMap = mutableMapOf<UUID, RecipeImageDTO>()
 
-            // hero images idu u images map
-            heroImages.forEach { h ->
-                h.id?.let { imagesMap[it] = RecipeImageDTO(id = it, url = h.url) }
-            }
-
-            // instruction images idu u images map
-            instructionImages.values.flatten().forEach { img ->
-                img.id?.let { imagesMap[it] = RecipeImageDTO(id = it, url = img.url) }
-            }
+            /**
+             * put all images in imagesMap
+             */
+            heroImages.entries.forEach { i -> imagesMap[i.key] = RecipeImageDTO(i.key,i.value) }
+            instructionImages.values.flatten().forEach { i->imagesMap[i.first]= RecipeImageDTO(i.first,i.second) }
 
             return RecipeDTO(
                 id=recipe.id!!,
@@ -93,6 +100,9 @@ class Utils {
                 difficulty = recipe.difficulty,
                 sideNotes = recipe.sideNotes,
                 images = imagesMap,
+                /**
+                 * Map ingredients to their id and value
+                 */
                 ingredients = ingredients
                     .associate { i ->
                         i.id!! to IngredientDTO(
@@ -102,17 +112,23 @@ class Utils {
                             measuringUnit = i.measuringUnit
                         )
                     },
+                /**
+                 * Map instructions to their id and value
+                 */
                 instructions = instructions
                     .associate { inst ->
                         inst.id!! to InstructionDTO(
                             id = inst.id!!,
                             text = inst.instruction,
-                            images = instructionImages[inst.id]?.mapNotNull { it.id } ?: emptyList()
+                            images = instructionImages[inst.id]?.map {it.first } ?: emptyList()
                         )
                     },
-                ingredientsOrder = ingredients.sortedBy { it.index }.mapNotNull { it.id },
-                instructionsOrder = instructions.sortedBy { it.index }.mapNotNull { it.id },
-                heroImagesOrder = heroImages.sortedBy { it.index }.mapNotNull { it.id }
+                /**
+                 * Order by index to match frontend expectations
+                 */
+                ingredientsOrder = ingredients.mapNotNull { it.id },
+                instructionsOrder = instructions.mapNotNull { it.id },
+                heroImagesOrder = heroImages.keys.map { it }
             )
         }
     }

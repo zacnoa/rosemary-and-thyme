@@ -85,9 +85,6 @@ jooq {
     }
 }
 
-/**
- *
 tasks.named("compileKotlin"){
     dependsOn(tasks.named("jooqCodegen"))
 }
- */

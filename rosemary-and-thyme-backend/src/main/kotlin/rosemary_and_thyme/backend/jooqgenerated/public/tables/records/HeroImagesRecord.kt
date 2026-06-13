@@ -16,7 +16,7 @@ import org.jooq.impl.UpdatableRecordImpl
 @Suppress("warnings")
 open class HeroImagesRecord private constructor() : UpdatableRecordImpl<HeroImagesRecord>(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.HeroImages.HERO_IMAGES) {
 
-    open var id: UUID?
+    open var imageId: UUID?
         set(value): Unit = set(0, value)
         get(): UUID? = get(0) as UUID?
 
@@ -24,13 +24,9 @@ open class HeroImagesRecord private constructor() : UpdatableRecordImpl<HeroImag
         set(value): Unit = set(1, value)
         get(): Int = get(1) as Int
 
-    open var url: String
-        set(value): Unit = set(2, value)
-        get(): String = get(2) as String
-
     open var recipeId: UUID
-        set(value): Unit = set(3, value)
-        get(): UUID = get(3) as UUID
+        set(value): Unit = set(2, value)
+        get(): UUID = get(2) as UUID
 
     // -------------------------------------------------------------------------
     // Primary key information
@@ -41,10 +37,9 @@ open class HeroImagesRecord private constructor() : UpdatableRecordImpl<HeroImag
     /**
      * Create a detached, initialised HeroImagesRecord
      */
-    constructor(id: UUID? = null, index: Int, url: String, recipeId: UUID): this() {
-        this.id = id
+    constructor(imageId: UUID? = null, index: Int, recipeId: UUID): this() {
+        this.imageId = imageId
         this.index = index
-        this.url = url
         this.recipeId = recipeId
         resetTouchedOnNotNull()
     }

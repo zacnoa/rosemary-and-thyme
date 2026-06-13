@@ -17,24 +17,38 @@ import rosemary_and_thyme.backend.repositories.recipes.RecipeDTO
 import rosemary_and_thyme.backend.services.RecipeService
 import java.util.UUID
 
+/**
+ * Controller layer
+ *
+ * SpringBoot uses Thread-per-request architecture.
+ * So in this layer each thread shall receive a request
+ * and begin processing it by calling the appropriate
+ * function
+ */
 
 @RestController
 @RequestMapping("/recipe")
 class RecipeController(private val recipeService: RecipeService) {
 
-
     @GetMapping("/{id}")
     fun getRecipeById(@PathVariable id: UUID): ApiResponse<RecipeDTO> =
-
         recipeService.findRecipeById(id)
 
-
+    /**
+     * Consumes serves as a safeguard against invalid data types
+     *
+     * MultiValueMap can have more values mapped to one key.
+     * so we use .first() to get only the first valid image file
+     */
     @PutMapping("/{id}", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun saveRecipe(
         @PathVariable id: UUID,
         @RequestPart("recipe") dto: RecipeDTO,
         @RequestParam allParts: MultiValueMap<String, MultipartFile>
     ): ApiResponse<RecipeDTO> {
+        /**
+         * Filters recipe part from allParts
+         */
         val images = allParts
             .filter { (key, _) -> key != "recipe" }
             .mapKeys { UUID.fromString(it.key) }

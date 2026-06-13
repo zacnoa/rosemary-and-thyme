@@ -33,6 +33,11 @@ open class Public : SchemaImpl(DSL.name("public"), DefaultCatalog.DEFAULT_CATALO
     val HERO_IMAGES: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.HeroImages get() = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.HeroImages.HERO_IMAGES
 
     /**
+     * The table <code>public.images</code>.
+     */
+    val IMAGES: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Images get() = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Images.IMAGES
+
+    /**
      * The table <code>public.ingredients</code>.
      */
     val INGREDIENTS: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Ingredients get() = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Ingredients.INGREDIENTS
@@ -61,6 +66,7 @@ open class Public : SchemaImpl(DSL.name("public"), DefaultCatalog.DEFAULT_CATALO
 
     override fun getTables(): List<Table<*>> = listOf(
         rosemary_and_thyme.backend.jooqgenerated.`public`.tables.HeroImages.HERO_IMAGES,
+        rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Images.IMAGES,
         rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Ingredients.INGREDIENTS,
         rosemary_and_thyme.backend.jooqgenerated.`public`.tables.InstructionImages.INSTRUCTION_IMAGES,
         rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Instructions.INSTRUCTIONS,

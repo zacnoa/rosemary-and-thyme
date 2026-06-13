@@ -70,19 +70,14 @@ open class InstructionImages(
     override fun getRecordType(): Class<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord> = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord::class.java
 
     /**
-     * The column <code>public.instruction_images.id</code>.
+     * The column <code>public.instruction_images.image_id</code>.
      */
-    val ID: TableField<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord, UUID?> = createField(DSL.name("id"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field(DSL.raw("gen_random_uuid()"), SQLDataType.UUID)), this, "")
+    val IMAGE_ID: TableField<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord, UUID?> = createField(DSL.name("image_id"), SQLDataType.UUID.nullable(false).defaultValue(DSL.field(DSL.raw("gen_random_uuid()"), SQLDataType.UUID)), this, "")
 
     /**
      * The column <code>public.instruction_images.index</code>.
      */
     val INDEX: TableField<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord, Int?> = createField(DSL.name("index"), SQLDataType.INTEGER.nullable(false), this, "")
-
-    /**
-     * The column <code>public.instruction_images.url</code>.
-     */
-    val URL: TableField<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord, String?> = createField(DSL.name("url"), SQLDataType.CLOB.nullable(false), this, "")
 
     /**
      * The column <code>public.instruction_images.instruction_id</code>.
@@ -123,7 +118,13 @@ open class InstructionImages(
     override fun getSchema(): Schema? = if (aliased()) null else rosemary_and_thyme.backend.jooqgenerated.`public`.Public.PUBLIC
     override fun getPrimaryKey(): UniqueKey<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord> = rosemary_and_thyme.backend.jooqgenerated.`public`.keys.INSTRUCTION_IMAGES_PKEY
     override fun getUniqueKeys(): List<UniqueKey<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord>> = listOf(rosemary_and_thyme.backend.jooqgenerated.`public`.keys.INSTRUCTION_IMAGES_INSTRUCTION_ID_INDEX_KEY)
-    override fun getReferences(): List<ForeignKey<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord, *>> = listOf(rosemary_and_thyme.backend.jooqgenerated.`public`.keys.INSTRUCTION_IMAGES__INSTRUCTION_IMAGES_INSTRUCTION_ID_FKEY)
+    override fun getReferences(): List<ForeignKey<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord, *>> = listOf(rosemary_and_thyme.backend.jooqgenerated.`public`.keys.INSTRUCTION_IMAGES__INSTRUCTION_IMAGES_IMAGE_ID_FKEY, rosemary_and_thyme.backend.jooqgenerated.`public`.keys.INSTRUCTION_IMAGES__INSTRUCTION_IMAGES_INSTRUCTION_ID_FKEY)
+
+    /**
+     * Get the implicit join path to the <code>public.images</code> table.
+     */
+    fun images(): rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Images.ImagesPath = images
+    val images: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Images.ImagesPath by lazy { rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Images.ImagesPath(this, rosemary_and_thyme.backend.jooqgenerated.`public`.keys.INSTRUCTION_IMAGES__INSTRUCTION_IMAGES_IMAGE_ID_FKEY, null) }
 
     /**
      * Get the implicit join path to the <code>public.instructions</code> table.

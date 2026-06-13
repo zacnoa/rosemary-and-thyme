@@ -13,6 +13,11 @@ package rosemary_and_thyme.backend.jooqgenerated.`public`.tables.references
 val HERO_IMAGES: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.HeroImages = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.HeroImages.HERO_IMAGES
 
 /**
+ * The table <code>public.images</code>.
+ */
+val IMAGES: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Images = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Images.IMAGES
+
+/**
  * The table <code>public.ingredients</code>.
  */
 val INGREDIENTS: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Ingredients = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Ingredients.INGREDIENTS
