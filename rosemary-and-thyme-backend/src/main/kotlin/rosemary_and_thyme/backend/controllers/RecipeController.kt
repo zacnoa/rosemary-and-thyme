@@ -12,9 +12,10 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
-import rosemary_and_thyme.backend.repositories.recipes.RecipeDTO
+import rosemary_and_thyme.backend.services.recipes.RecipeDTO
 import rosemary_and_thyme.backend.services.recipes.RecipeService
 import java.util.UUID
+
 
 /**
  * Controller layer
@@ -30,17 +31,10 @@ import java.util.UUID
 class RecipeController(private val recipeService: RecipeService) {
 
     @GetMapping("/{id}")
-    fun getRecipeById(@PathVariable id: UUID): ApiResponse<RecipeDTO> =
-        recipeService.findRecipeById(id)
-
-
-    fun test(){
-        val response= ResponseEntity.status(HttpStatus.ACCEPTED)
-            .body { val message = "dsadgsdfg" }
-
-
+    fun getRecipeById(@PathVariable id: UUID): ResponseEntity<RecipeDTO> {
+        val recipe = recipeService.findRecipeById(id)
+        return ResponseEntity.ok(recipe)
     }
-
 
 
     /**
@@ -54,7 +48,7 @@ class RecipeController(private val recipeService: RecipeService) {
         @PathVariable id: UUID,
         @RequestPart("recipe") dto: RecipeDTO,
         @RequestParam allParts: MultiValueMap<String, MultipartFile>
-    ): ApiResponse<RecipeDTO> {
+    ): ResponseEntity<RecipeDTO> {
         /**
          * Filters recipe part from allParts
          */
@@ -62,6 +56,8 @@ class RecipeController(private val recipeService: RecipeService) {
             .filter { (key, _) -> key != "recipe" }
             .mapKeys { UUID.fromString(it.key) }
             .mapValues { it.value.first() }
-        return recipeService.saveRecipe(dto, images)
+
+        val recipe=recipeService.saveRecipe(dto, images)
+        return ResponseEntity.ok(recipe)
     }
 }
