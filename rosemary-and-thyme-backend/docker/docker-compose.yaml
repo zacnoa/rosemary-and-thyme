@@ -2,7 +2,7 @@ services: # definira kontejnere koje želiš pokrenuti
   postgres: # naziv servisa (koristiš ga za spajanje između servisa)
     image: postgres:16             # koju Docker sliku koristi (verzija 16)
     environment: # environment varijable unutar kontejnera
-      POSTGRES_DB: recipes_db      # naziv baze koja se automatski kreira
+      POSTGRES_DB: rosemary_and_thyme     # naziv baze koja se automatski kreira
       POSTGRES_USER: noa      # korisničko ime
       POSTGRES_PASSWORD: noa  # lozinka
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale-provider=icu --icu-locale=und"

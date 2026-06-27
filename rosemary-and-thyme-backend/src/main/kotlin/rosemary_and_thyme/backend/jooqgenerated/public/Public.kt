@@ -57,11 +57,6 @@ open class Public : SchemaImpl(DSL.name("public"), DefaultCatalog.DEFAULT_CATALO
      */
     val RECIPES: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes get() = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RECIPES
 
-    /**
-     * The table <code>public.users</code>.
-     */
-    val USERS: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Users get() = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Users.USERS
-
     override fun getCatalog(): Catalog = DefaultCatalog.DEFAULT_CATALOG
 
     override fun getTables(): List<Table<*>> = listOf(
@@ -70,7 +65,6 @@ open class Public : SchemaImpl(DSL.name("public"), DefaultCatalog.DEFAULT_CATALO
         rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Ingredients.INGREDIENTS,
         rosemary_and_thyme.backend.jooqgenerated.`public`.tables.InstructionImages.INSTRUCTION_IMAGES,
         rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Instructions.INSTRUCTIONS,
-        rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RECIPES,
-        rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Users.USERS
+        rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RECIPES
     )
 }

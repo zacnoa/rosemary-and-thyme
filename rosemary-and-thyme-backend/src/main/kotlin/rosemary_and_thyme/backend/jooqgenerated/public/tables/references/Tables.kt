@@ -36,8 +36,3 @@ val INSTRUCTIONS: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Instr
  * The table <code>public.recipes</code>.
  */
 val RECIPES: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RECIPES
-
-/**
- * The table <code>public.users</code>.
- */
-val USERS: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Users = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Users.USERS

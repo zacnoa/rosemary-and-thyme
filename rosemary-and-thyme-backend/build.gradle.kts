@@ -21,6 +21,7 @@ repositories {
 }
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("tools.jackson.module:jackson-module-kotlin")
 
@@ -36,6 +37,11 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+
+    implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+    implementation("org.springframework.security:spring-security-crypto")
 }
 
 kotlin {
@@ -51,7 +57,7 @@ jooq {
     configuration {
         jdbc{
             driver = "org.postgresql.Driver"
-            url = "jdbc:postgresql://localhost:432/recipes_db"
+            url = "jdbc:postgresql://localhost:432/rosemary_and_thyme"
             user="noa"
             password="noa"
         }
@@ -66,7 +72,7 @@ jooq {
                         inputSchema = "public"
                     }
                     schema{
-                        inputSchema="users"
+                        inputSchema="auth"
                     }
                 }
             }

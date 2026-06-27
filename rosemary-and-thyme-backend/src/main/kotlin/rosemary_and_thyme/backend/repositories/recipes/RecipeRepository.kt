@@ -9,6 +9,10 @@ import rosemary_and_thyme.backend.jooqgenerated.public.tables.Instructions.Compa
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.Recipes.Companion.RECIPES
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.*
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.references.IMAGES
+import rosemary_and_thyme.backend.services.recipes.IngredientDTO
+import rosemary_and_thyme.backend.services.recipes.InstructionDTO
+import rosemary_and_thyme.backend.services.recipes.RecipeDTO
+import rosemary_and_thyme.backend.services.recipes.RecipeImageDTO
 import java.util.*
 import kotlin.collections.partition
 
@@ -71,7 +75,7 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    fun RecipeRepository.saveIngredients(
+    fun saveIngredients(
         recipeId: UUID,
         ingredients: Map<UUID, IngredientDTO>,
         order: List<UUID>
@@ -136,7 +140,7 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    fun RecipeRepository.saveInstructions(
+    fun saveInstructions(
         recipeId: UUID,
         instructions: Map<UUID, InstructionDTO>,
         order: List<UUID>,
@@ -207,7 +211,7 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    fun RecipeRepository.saveHeroImages(
+    fun saveHeroImages(
         recipeId: UUID,
         images: Map<UUID, RecipeImageDTO>,
         order: List<UUID>
@@ -265,7 +269,7 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    fun RecipeRepository.saveInstructionImages(
+    fun saveInstructionImages(
         instructionId: UUID,
         imageIds: List<UUID>,
         images: Map<UUID, RecipeImageDTO>
@@ -356,7 +360,7 @@ class RecipeRepository(val dsl: DSLContext) {
             .fetch()
             .associate { it[HERO_IMAGES.IMAGE_ID]!! to it[IMAGES.URL]!! }
 
-    fun fetchInstructionImages(instructionIds: List<UUID>): Map<UUID, List<Pair<UUID,String>>> =
+    fun fetchInstructionImages(instructionIds: List<UUID>): Map<UUID, List<Pair<UUID, String>>> =
         dsl.select(INSTRUCTION_IMAGES.INSTRUCTION_ID, INSTRUCTION_IMAGES.IMAGE_ID, IMAGES.URL)
             .from(INSTRUCTION_IMAGES)
             .join(IMAGES).on(INSTRUCTION_IMAGES.IMAGE_ID.eq(IMAGES.ID))

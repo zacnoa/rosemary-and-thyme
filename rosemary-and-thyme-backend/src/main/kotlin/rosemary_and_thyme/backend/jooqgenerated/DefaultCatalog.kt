@@ -10,7 +10,7 @@ import org.jooq.Constants
 import org.jooq.Schema
 import org.jooq.impl.CatalogImpl
 
-import rosemary_and_thyme.backend.jooqgenerated.users.Users
+import rosemary_and_thyme.backend.jooqgenerated.auth.Auth
 
 
 /**
@@ -27,18 +27,18 @@ open class DefaultCatalog : CatalogImpl("") {
     }
 
     /**
+     * The schema <code>auth</code>.
+     */
+    val AUTH: Auth get(): Auth = Auth.AUTH
+
+    /**
      * standard public schema
      */
     val PUBLIC: rosemary_and_thyme.backend.jooqgenerated.`public`.Public get(): rosemary_and_thyme.backend.jooqgenerated.`public`.Public = rosemary_and_thyme.backend.jooqgenerated.`public`.Public.PUBLIC
 
-    /**
-     * The schema <code>users</code>.
-     */
-    val USERS: Users get(): Users = Users.USERS
-
     override fun getSchemas(): List<Schema> = listOf(
-        rosemary_and_thyme.backend.jooqgenerated.`public`.Public.PUBLIC,
-        Users.USERS
+        Auth.AUTH,
+        rosemary_and_thyme.backend.jooqgenerated.`public`.Public.PUBLIC
     )
 
     /**
