@@ -16,18 +16,17 @@ import java.util.UUID
 class JwtService(
     private val privateKey: RSAPrivateKey,
     private val publicKey: RSAPublicKey,
-    @Value($$"${jwt.access-token-ttl-minutes}") private val tokenTll:Long
+    @Value("\${jwt.access-token-ttl-minutes}") private val tokenTtl:Long
 ) {
 
 
-    fun generateJwtToken(userId: UUID, email:String): String{
+    fun generateJwtToken(userId: UUID): String{
         val now= Instant.now()
 
         return Jwts.builder()
             .subject(userId.toString())
-            .claim("email",email)
             .issuedAt(Date.from(now))
-            .expiration(Date.from(now.plus(tokenTll,ChronoUnit.MINUTES)))
+            .expiration(Date.from(now.plus(tokenTtl,ChronoUnit.MINUTES)))
             .signWith(privateKey,Jwts.SIG.RS256)
             .compact()
     }

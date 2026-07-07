@@ -6,6 +6,7 @@ package rosemary_and_thyme.backend.jooqgenerated.auth.tables.references
 
 
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.RefreshTokens
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Sessions
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Users
 
 
@@ -14,6 +15,11 @@ import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Users
  * The table <code>auth.refresh_tokens</code>.
  */
 val REFRESH_TOKENS: RefreshTokens = RefreshTokens.REFRESH_TOKENS
+
+/**
+ * The table <code>auth.sessions</code>.
+ */
+val SESSIONS: Sessions = Sessions.SESSIONS
 
 /**
  * The table <code>auth.users</code>.

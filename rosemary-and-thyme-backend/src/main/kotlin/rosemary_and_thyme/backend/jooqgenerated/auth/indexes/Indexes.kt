@@ -10,6 +10,7 @@ import org.jooq.impl.DSL
 import org.jooq.impl.Internal
 
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.RefreshTokens
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Sessions
 
 
 
@@ -17,5 +18,6 @@ import rosemary_and_thyme.backend.jooqgenerated.auth.tables.RefreshTokens
 // INDEX definitions
 // -------------------------------------------------------------------------
 
-val IDX_REFRESH_TOKENS_FAMILY: Index = Internal.createIndex(DSL.name("idx_refresh_tokens_family"), RefreshTokens.REFRESH_TOKENS, arrayOf(RefreshTokens.REFRESH_TOKENS.FAMILY_ID), false)
 val IDX_REFRESH_TOKENS_USER: Index = Internal.createIndex(DSL.name("idx_refresh_tokens_user"), RefreshTokens.REFRESH_TOKENS, arrayOf(RefreshTokens.REFRESH_TOKENS.USER_ID), false)
+val IDX_SESSIONS_EXPIRES: Index = Internal.createIndex(DSL.name("idx_sessions_expires"), Sessions.SESSIONS, arrayOf(Sessions.SESSIONS.EXPIRES_AT), false)
+val IDX_SESSIONS_USER: Index = Internal.createIndex(DSL.name("idx_sessions_user"), Sessions.SESSIONS, arrayOf(Sessions.SESSIONS.USER_ID), false)

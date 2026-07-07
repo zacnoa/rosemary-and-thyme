@@ -35,12 +35,14 @@ class RefreshTokenRepository(val dsl: DSLContext) {
             .execute()
     }
 
-    fun useRefreshToken(tokenHash:String){
+    fun useRefreshToken(tokenHash:String):Int =
         dsl.update(REFRESH_TOKENS)
             .set(REFRESH_TOKENS.USED,true)
             .where(REFRESH_TOKENS.TOKEN_HASH.eq(tokenHash))
+            .and(REFRESH_TOKENS.USED.eq(false))
+            .and(REFRESH_TOKENS.REVOKED.eq(false))
             .execute()
-    }
+
 
     fun revokeRefreshToken(tokenHash:String){
         dsl.update(REFRESH_TOKENS)

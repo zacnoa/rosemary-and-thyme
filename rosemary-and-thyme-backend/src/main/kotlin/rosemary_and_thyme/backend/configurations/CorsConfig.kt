@@ -11,6 +11,6 @@ class CorsConfig : WebMvcConfigurer {
             .allowedOrigins("http://localhost:3000") // vite default port
             .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
             .allowedHeaders("*")
-            .allowCredentials(false)
+            .allowCredentials(true)
     }
 }

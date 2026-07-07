@@ -3,10 +3,10 @@ package rosemary_and_thyme.backend.services.auth
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import rosemary_and_thyme.backend.models.RawRefreshToken
+import rosemary_and_thyme.backend.models.JWTRefreshPair
+import rosemary_and_thyme.backend.models.RotatedResponse
 import rosemary_and_thyme.backend.repositories.auth.RefreshTokenRepository
 import java.nio.charset.StandardCharsets
-import java.security.InvalidKeyException
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.LocalDateTime
@@ -15,8 +15,9 @@ import kotlin.io.encoding.Base64
 
 @Service
 class RefreshTokenService(
-    val refreshTokenRepository: RefreshTokenRepository,
-    @Value($$"${refresh-token.ttl-days") ttlDays: Long
+     val refreshTokenRepository: RefreshTokenRepository,
+     val jwtService: JwtService,
+    @Value("\${refresh-token.ttl-days}") ttlDays: Long
 ) {
 
     private fun generateSecureRandomToken(): String {
@@ -31,36 +32,51 @@ class RefreshTokenService(
             .joinToString("") { "%02x".format(it) }
 
 
-    fun issue(userId: UUID, familyId: UUID = UUID.randomUUID()): RawRefreshToken {
+    fun issue(userId: UUID, familyId: UUID = UUID.randomUUID()): String {
         val rawToken = generateSecureRandomToken()
         val tokenHash = sha256(rawToken)
 
-        refreshTokenRepository.insertRefreshToken(userId, familyId, tokenHash);
+        refreshTokenRepository.insertRefreshToken(userId, familyId, tokenHash)
 
-        return RawRefreshToken(tokenHash, familyId)
+        return rawToken
 
     }
 
     @Transactional
-    fun rotate(rawToken: String, userId: UUID): RawRefreshToken {
+    fun rotate(rawToken: String): JWTRefreshPair {
 
         val tokenHash = sha256(rawToken)
+
         val token = refreshTokenRepository.selectRefreshToken(tokenHash)
 
-        check(token.revoked!!) { "Token is expired!" }
+        check(!token.revoked!!) { "Token revoked" }
 
-        check(token.expiresAt.isBefore(LocalDateTime.now())) { "Token expired!" }
-        check(token.userId == userId) { "Token user id does not match user ID" }
+        check(!token.used!!) { "Token already used" }
 
-        if (token.used == true) {
+        check(token.expiresAt.isAfter(LocalDateTime.now())) { "Token expired" }
+
+        val rowsUpdated = refreshTokenRepository.useRefreshToken(tokenHash)
+
+        if (rowsUpdated == 0) {
             refreshTokenRepository.revokeRefreshTokenFamily(token.familyId)
-            throw IllegalStateException("Token has been previously  used")
+
+            throw IllegalStateException(
+                "Refresh token replay detected"
+            )
         }
 
-        refreshTokenRepository.useRefreshToken(tokenHash)
+        val rotatedToken = issue(token.userId, token.familyId)
+        val jwtToken = jwtService.generateJwtToken(token.userId)
 
-        return issue(token.userId, token.familyId)
+        return JWTRefreshPair(rotatedToken,jwtToken)
     }
 
+    @Transactional
+    fun logoutUser(rawRefreshToken: String) {
 
+        val tokenHash = sha256(rawRefreshToken)
+
+        val token = refreshTokenRepository.selectRefreshToken(tokenHash)
+        refreshTokenRepository.revokeRefreshTokenFamily(token.familyId)
+    }
 }

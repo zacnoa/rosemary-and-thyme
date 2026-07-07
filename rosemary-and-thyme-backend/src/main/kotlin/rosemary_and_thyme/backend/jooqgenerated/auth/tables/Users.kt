@@ -7,6 +7,7 @@ package rosemary_and_thyme.backend.jooqgenerated.auth.tables
 import java.util.UUID
 
 import kotlin.collections.Collection
+import kotlin.collections.List
 
 import org.jooq.Condition
 import org.jooq.Field
@@ -32,8 +33,11 @@ import org.jooq.impl.TableImpl
 
 import rosemary_and_thyme.backend.jooqgenerated.auth.Auth
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.REFRESH_TOKENS__REFRESH_TOKENS_USER_ID_FKEY
+import rosemary_and_thyme.backend.jooqgenerated.auth.keys.SESSIONS__SESSIONS_USER_ID_FKEY
+import rosemary_and_thyme.backend.jooqgenerated.auth.keys.USERS_EMAIL_KEY
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.USERS_PKEY
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.RefreshTokens.RefreshTokensPath
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Sessions.SessionsPath
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
 
 
@@ -127,6 +131,7 @@ open class Users(
     }
     override fun getSchema(): Schema? = if (aliased()) null else Auth.AUTH
     override fun getPrimaryKey(): UniqueKey<UsersRecord> = USERS_PKEY
+    override fun getUniqueKeys(): List<UniqueKey<UsersRecord>> = listOf(USERS_EMAIL_KEY)
 
     private lateinit var _refreshTokens: RefreshTokensPath
 
@@ -143,6 +148,22 @@ open class Users(
 
     val refreshTokens: RefreshTokensPath
         get(): RefreshTokensPath = refreshTokens()
+
+    private lateinit var _sessions: SessionsPath
+
+    /**
+     * Get the implicit to-many join path to the <code>auth.sessions</code>
+     * table
+     */
+    fun sessions(): SessionsPath {
+        if (!this::_sessions.isInitialized)
+            _sessions = SessionsPath(this, null, SESSIONS__SESSIONS_USER_ID_FKEY.inverseKey)
+
+        return _sessions;
+    }
+
+    val sessions: SessionsPath
+        get(): SessionsPath = sessions()
     override fun `as`(alias: String): Users = Users(DSL.name(alias), this)
     override fun `as`(alias: Name): Users = Users(alias, this)
     override fun `as`(alias: Table<*>): Users = Users(alias.qualifiedName, this)

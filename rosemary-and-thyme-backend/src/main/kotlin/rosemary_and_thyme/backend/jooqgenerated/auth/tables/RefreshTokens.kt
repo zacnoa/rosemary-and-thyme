@@ -34,7 +34,6 @@ import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 
 import rosemary_and_thyme.backend.jooqgenerated.auth.Auth
-import rosemary_and_thyme.backend.jooqgenerated.auth.indexes.IDX_REFRESH_TOKENS_FAMILY
 import rosemary_and_thyme.backend.jooqgenerated.auth.indexes.IDX_REFRESH_TOKENS_USER
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.REFRESH_TOKENS_PKEY
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.REFRESH_TOKENS_TOKEN_HASH_KEY
@@ -152,7 +151,7 @@ open class RefreshTokens(
         override fun `as`(alias: Table<*>): RefreshTokensPath = RefreshTokensPath(alias.qualifiedName, this)
     }
     override fun getSchema(): Schema? = if (aliased()) null else Auth.AUTH
-    override fun getIndexes(): List<Index> = listOf(IDX_REFRESH_TOKENS_FAMILY, IDX_REFRESH_TOKENS_USER)
+    override fun getIndexes(): List<Index> = listOf(IDX_REFRESH_TOKENS_USER)
     override fun getPrimaryKey(): UniqueKey<RefreshTokensRecord> = REFRESH_TOKENS_PKEY
     override fun getUniqueKeys(): List<UniqueKey<RefreshTokensRecord>> = listOf(REFRESH_TOKENS_TOKEN_HASH_KEY)
     override fun getReferences(): List<ForeignKey<RefreshTokensRecord, *>> = listOf(REFRESH_TOKENS__REFRESH_TOKENS_USER_ID_FKEY)

@@ -2,7 +2,7 @@ spring:
   application:
     name: rosemary-and-thyme-backend
   datasource:
-    url: jdbc:postgresql://localhost:432/recipes_db
+    url: jdbc:postgresql://localhost:432/rosemary_and_thyme
     username: noa
     password: noa
 
