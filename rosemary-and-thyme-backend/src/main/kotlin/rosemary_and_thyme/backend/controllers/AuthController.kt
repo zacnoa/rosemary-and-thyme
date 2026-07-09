@@ -23,68 +23,44 @@ class AuthController(
 ) {
 
     @PostMapping("/register")
-    fun register(@RequestBody request: RegisterRequest): ResponseEntity<JwtResponse> {
-        val jwtRefreshPair = authService.register(request)
+    fun register(@RequestBody request: RegisterRequest): ResponseEntity<Unit> {
 
-        val refreshCookie = createRefreshCookie(jwtRefreshPair.refreshToken)
-        val token = JwtResponse(jwtRefreshPair.accessToken)
+        val sessionToken=authService.register(request)
+        val sessionCookie=createSessionCookie(sessionToken)
 
         return ResponseEntity.ok()
-            .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
-            .body(token)
+            .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
+            .build()
 
     }
 
 
     @PostMapping("/login")
-    fun login(@RequestBody request: LoginRequest): ResponseEntity<JwtResponse> {
+    fun login(@RequestBody request: LoginRequest): ResponseEntity<Unit> {
 
-        val jwtRefreshPair = authService.login(request.email, request.password)
+        val sessionToken= authService.login(request.email, request.password)
 
-        val refreshCookie = createRefreshCookie(jwtRefreshPair.refreshToken)
+        val refreshCookie = createSessionCookie(sessionToken)
 
-        val token = JwtResponse(jwtRefreshPair.accessToken)
 
-        return ResponseEntity.ok()
-            .header(
-                HttpHeaders.SET_COOKIE,
+        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE,
                 refreshCookie.toString(),
             )
-            .body(token)
+            .build()
     }
 
-    @PostMapping("/refresh")
-    fun refresh(@CookieValue("refresh_token") refreshToken: String): ResponseEntity<JwtResponse> {
-
-        val jwtRefreshPair =
-            authService.refresh(refreshToken)
-
-        val refreshCookie = createRefreshCookie(jwtRefreshPair.refreshToken)
-
-        val token = JwtResponse(jwtRefreshPair.accessToken)
-
-        return ResponseEntity.ok()
-            .header(
-                HttpHeaders.SET_COOKIE,
-                refreshCookie.toString()
-            )
-            .body(token)
-    }
 
     @PostMapping("/logout")
-    fun logout(
-        @CookieValue(
-            value = "refresh_token",
-            required = false
-        )
-        refreshToken: String?
-    ): ResponseEntity<Unit> {
+    fun logout(@CookieValue(value = "session_cookie", required = false) sessionCookie:String?): ResponseEntity<Unit> {
 
-        if (refreshToken != null) {
-            authService.logout(refreshToken)
+        if(sessionCookie !=null){
+
+            authService.logout(sessionCookie)
         }
 
-        return ResponseEntity.noContent()
+
+
+        return ResponseEntity.ok()
             .header(
                 HttpHeaders.SET_COOKIE,
                 clearRefreshCookie().toString()
@@ -93,10 +69,10 @@ class AuthController(
     }
 
     //TODO: dont forget to set secure to TRUE
-    private fun createRefreshCookie(refreshToken: String): ResponseCookie =
+    private fun createSessionCookie(sessionToken: String): ResponseCookie =
         ResponseCookie.from(
-            "refresh_token",
-            refreshToken
+            "session_cookie",
+            sessionToken
         )
             .httpOnly(true)
             .secure(false)
@@ -107,7 +83,7 @@ class AuthController(
 
     private fun clearRefreshCookie(): ResponseCookie =
         ResponseCookie.from(
-            "refresh_token",
+            "session_cookie",
             ""
         )
             .httpOnly(true)

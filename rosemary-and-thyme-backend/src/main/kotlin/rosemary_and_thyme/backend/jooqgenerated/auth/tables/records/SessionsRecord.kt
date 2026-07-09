@@ -4,7 +4,7 @@
 package rosemary_and_thyme.backend.jooqgenerated.auth.tables.records
 
 
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.util.UUID
 
 import org.jooq.Record1
@@ -27,21 +27,25 @@ open class SessionsRecord private constructor() : UpdatableRecordImpl<SessionsRe
         set(value): Unit = set(1, value)
         get(): UUID = get(1) as UUID
 
-    open var createdAt: LocalDateTime?
+    open var sessionHash: String
         set(value): Unit = set(2, value)
-        get(): LocalDateTime? = get(2) as LocalDateTime?
+        get(): String = get(2) as String
 
-    open var expiresAt: LocalDateTime?
+    open var createdAt: OffsetDateTime?
         set(value): Unit = set(3, value)
-        get(): LocalDateTime? = get(3) as LocalDateTime?
+        get(): OffsetDateTime? = get(3) as OffsetDateTime?
 
-    open var lastUsedAt: LocalDateTime?
+    open var expiresAt: OffsetDateTime?
         set(value): Unit = set(4, value)
-        get(): LocalDateTime? = get(4) as LocalDateTime?
+        get(): OffsetDateTime? = get(4) as OffsetDateTime?
+
+    open var lastUsedAt: OffsetDateTime?
+        set(value): Unit = set(5, value)
+        get(): OffsetDateTime? = get(5) as OffsetDateTime?
 
     open var revoked: Boolean?
-        set(value): Unit = set(5, value)
-        get(): Boolean? = get(5) as Boolean?
+        set(value): Unit = set(6, value)
+        get(): Boolean? = get(6) as Boolean?
 
     // -------------------------------------------------------------------------
     // Primary key information
@@ -52,9 +56,10 @@ open class SessionsRecord private constructor() : UpdatableRecordImpl<SessionsRe
     /**
      * Create a detached, initialised SessionsRecord
      */
-    constructor(id: UUID? = null, userId: UUID, createdAt: LocalDateTime? = null, expiresAt: LocalDateTime? = null, lastUsedAt: LocalDateTime? = null, revoked: Boolean? = null): this() {
+    constructor(id: UUID? = null, userId: UUID, sessionHash: String, createdAt: OffsetDateTime? = null, expiresAt: OffsetDateTime? = null, lastUsedAt: OffsetDateTime? = null, revoked: Boolean? = null): this() {
         this.id = id
         this.userId = userId
+        this.sessionHash = sessionHash
         this.createdAt = createdAt
         this.expiresAt = expiresAt
         this.lastUsedAt = lastUsedAt

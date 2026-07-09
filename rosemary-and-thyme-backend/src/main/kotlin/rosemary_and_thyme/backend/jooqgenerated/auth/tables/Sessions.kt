@@ -4,7 +4,7 @@
 package rosemary_and_thyme.backend.jooqgenerated.auth.tables
 
 
-import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.util.UUID
 
 import kotlin.collections.Collection
@@ -34,8 +34,8 @@ import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 
 import rosemary_and_thyme.backend.jooqgenerated.auth.Auth
-import rosemary_and_thyme.backend.jooqgenerated.auth.indexes.IDX_SESSIONS_EXPIRES
-import rosemary_and_thyme.backend.jooqgenerated.auth.indexes.IDX_SESSIONS_USER
+import rosemary_and_thyme.backend.jooqgenerated.auth.indexes.IDX_SESSIONS_HASH
+import rosemary_and_thyme.backend.jooqgenerated.auth.keys.SESSIONS_HASH_KEY
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.SESSIONS_PKEY
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.SESSIONS__SESSIONS_USER_ID_FKEY
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Users.UsersPath
@@ -90,19 +90,24 @@ open class Sessions(
     val USER_ID: TableField<SessionsRecord, UUID?> = createField(DSL.name("user_id"), SQLDataType.UUID.nullable(false), this, "")
 
     /**
+     * The column <code>auth.sessions.session_hash</code>.
+     */
+    val SESSION_HASH: TableField<SessionsRecord, String?> = createField(DSL.name("session_hash"), SQLDataType.VARCHAR(64).nullable(false), this, "")
+
+    /**
      * The column <code>auth.sessions.created_at</code>.
      */
-    val CREATED_AT: TableField<SessionsRecord, LocalDateTime?> = createField(DSL.name("created_at"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field(DSL.raw("now()"), SQLDataType.LOCALDATETIME)), this, "")
+    val CREATED_AT: TableField<SessionsRecord, OffsetDateTime?> = createField(DSL.name("created_at"), SQLDataType.TIMESTAMPWITHTIMEZONE(6).nullable(false).defaultValue(DSL.field(DSL.raw("now()"), SQLDataType.TIMESTAMPWITHTIMEZONE)), this, "")
 
     /**
      * The column <code>auth.sessions.expires_at</code>.
      */
-    val EXPIRES_AT: TableField<SessionsRecord, LocalDateTime?> = createField(DSL.name("expires_at"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field(DSL.raw("(now() + '30 days'::interval)"), SQLDataType.LOCALDATETIME)), this, "")
+    val EXPIRES_AT: TableField<SessionsRecord, OffsetDateTime?> = createField(DSL.name("expires_at"), SQLDataType.TIMESTAMPWITHTIMEZONE(6).nullable(false).defaultValue(DSL.field(DSL.raw("(now() + '30 days'::interval)"), SQLDataType.TIMESTAMPWITHTIMEZONE)), this, "")
 
     /**
      * The column <code>auth.sessions.last_used_at</code>.
      */
-    val LAST_USED_AT: TableField<SessionsRecord, LocalDateTime?> = createField(DSL.name("last_used_at"), SQLDataType.LOCALDATETIME(6).nullable(false).defaultValue(DSL.field(DSL.raw("now()"), SQLDataType.LOCALDATETIME)), this, "")
+    val LAST_USED_AT: TableField<SessionsRecord, OffsetDateTime?> = createField(DSL.name("last_used_at"), SQLDataType.TIMESTAMPWITHTIMEZONE(6).nullable(false).defaultValue(DSL.field(DSL.raw("now()"), SQLDataType.TIMESTAMPWITHTIMEZONE)), this, "")
 
     /**
      * The column <code>auth.sessions.revoked</code>.
@@ -141,8 +146,9 @@ open class Sessions(
         override fun `as`(alias: Table<*>): SessionsPath = SessionsPath(alias.qualifiedName, this)
     }
     override fun getSchema(): Schema? = if (aliased()) null else Auth.AUTH
-    override fun getIndexes(): List<Index> = listOf(IDX_SESSIONS_EXPIRES, IDX_SESSIONS_USER)
+    override fun getIndexes(): List<Index> = listOf(IDX_SESSIONS_HASH)
     override fun getPrimaryKey(): UniqueKey<SessionsRecord> = SESSIONS_PKEY
+    override fun getUniqueKeys(): List<UniqueKey<SessionsRecord>> = listOf(SESSIONS_HASH_KEY)
     override fun getReferences(): List<ForeignKey<SessionsRecord, *>> = listOf(SESSIONS__SESSIONS_USER_ID_FKEY)
 
     /**

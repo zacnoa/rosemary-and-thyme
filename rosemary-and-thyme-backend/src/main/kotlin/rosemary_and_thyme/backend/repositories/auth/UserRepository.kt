@@ -4,6 +4,7 @@ import org.jooq.DSLContext
 import org.springframework.stereotype.Repository
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.references.USERS
+import java.util.UUID
 
 @Repository
 class UserRepository(val dsl: DSLContext) {
@@ -22,6 +23,11 @@ class UserRepository(val dsl: DSLContext) {
             .set(USERS.USERNAME,userName)
             .returning()
             .fetchOne() ?: throw IllegalStateException("Failed to insert user")
+
+    fun selectUserById(userId: UUID): UsersRecord? =
+        dsl.selectFrom(USERS)
+            .where(USERS.ID.eq(userId))
+            .fetchOne()
 
 
 }

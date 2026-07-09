@@ -19,5 +19,4 @@ import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Sessions
 // -------------------------------------------------------------------------
 
 val IDX_REFRESH_TOKENS_USER: Index = Internal.createIndex(DSL.name("idx_refresh_tokens_user"), RefreshTokens.REFRESH_TOKENS, arrayOf(RefreshTokens.REFRESH_TOKENS.USER_ID), false)
-val IDX_SESSIONS_EXPIRES: Index = Internal.createIndex(DSL.name("idx_sessions_expires"), Sessions.SESSIONS, arrayOf(Sessions.SESSIONS.EXPIRES_AT), false)
-val IDX_SESSIONS_USER: Index = Internal.createIndex(DSL.name("idx_sessions_user"), Sessions.SESSIONS, arrayOf(Sessions.SESSIONS.USER_ID), false)
+val IDX_SESSIONS_HASH: Index = Internal.createIndex(DSL.name("idx_sessions_hash"), Sessions.SESSIONS, arrayOf(Sessions.SESSIONS.SESSION_HASH), false)
