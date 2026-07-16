@@ -1,3 +1,4 @@
+/*
 package rosemary_and_thyme.backend.repositories.auth
 
 import org.jooq.DSLContext
@@ -57,4 +58,4 @@ class RefreshTokenRepository(val dsl: DSLContext) {
             .execute()
     }
 
-}
+}*/

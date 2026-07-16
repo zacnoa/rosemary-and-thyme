@@ -1,24 +1,18 @@
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: rosemary-and-thyme-backend
   datasource:
-    url: jdbc:postgresql://localhost:432/rosemary_and_thyme
-    username: noa
-    password: noa
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
 
 cloudinary:
-  cloud-name: dfgde179c
-  api-key: 285172359523528
-  api-secret: 8hVCegcnYIXpQkiCw62guZCbLwQ
+  cloud-name: ${CLOUDINARY_NAME}
+  api-key: ${CLOUDINARY_KEY}
+  api-secret: ${CLOUDINARY_SECRET}
 
-jwt:
-  private-key: MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDIPLC2QMaOpTaqCykxrxpI3FO4u2ys9aJ0D/xf51Bq9pq8G8bCsqZRMrWjBo4RutqcVKK+EvC6LQCI2e5gZ5FoEHbTFi8OCQKKt3jUeQx0yoDG5YjjC1+SWTtZvHxsDVKLrGC9dkgheA7RGbMhvsCw5MMIKjYwCJgDD0uVlMo5vbISR7erHFx3G0sB62CWSKjkmdImcZMK1T2p4m3do8HJQApuEH/8037Ma1rJV648D5p5V7/f/QIrd/KyMXejd71K1dDJqHStQ/n4EleQIdpnVoIeOxT8KO9Grnk3bDG6hIZcXKbTLFdmXFmsmScyG+DA7NjIiuLV7nbp0SaCfP1rAgMBAAECggEABju+w+BZWLMeSVsxQZmHXRxKw5Xwvfj5loOxjL9pL/iUUZB1zArUBZ6+q8q2R9QEHoNopjfLDv37+xv5q+jyzFqy2u22XPP9Lxn4uiM4jDbfnRF5L5mONJfwMozHvMoKDKIQSDrzPON9ZpdWYxG1SEHJgSq7PByQYDas2NpkaeQGmlnf2pkdpwTZuxKgUQ2waLb8b4AfbjVKpHs3Jj/H3XB5g+0/GqPna8HpiiN8o/G9Vx/BM9K0+gctpBN2u9cvDvAt2LLjk3dp/zBp4NhuxXMpyd2keYwzCVm4Iq/ZI9kSJfBI3Wc0pnzGCZy8L3Z5wP4fzg7nQT3hG2NL2irvTQKBgQDnh5lp3VFdWWZ8EZbtRH8WtBQwL4BeUx92BKLZRmvIlP3xzvh+WDPZzgteubqP7dWyGXQ3H/i49L1uFbdB0IvJCb202iZRbL5yv49wbjZ4HSZNhLyikSD9AP+tfKYIzIsuqwknXrIyovtzQxFbaPb0F4GQCB9xsJE3JXjlu/9HrQKBgQDdZmuF2uN0YYx6H7zHrqRO5wu1xW7coYj13xzJAQHLKs34XVSRSjw3Atm0Z9Kkc8faQResBWXJwmj/YeLSV8YCVaShwR0s7qBSobdzGAJlFgSM5FnzyPOrua2FmRsMQPPXw8Jc911hjg8gNccQNc+CF2rkLW+FykUXnybuIWLcdwKBgQCVpIi9abQK95tLmTrJQ7o4fE+IDUuUq3jsGHcAo4lKbTHste7aCjwJDClBIh24pOm3YMhCUMG7GUPOAO8e9KFEYK1iVJTrj7NQCwu0iSdfXsfA1oftMov1uk2GXcgaa8mRci5KaeQW4kxO5Qw03pSukvrEkttv6cURtYB8S5PlSQKBgBvfuCvLChXt7hy2ADN3plIUvqGs8K8wWyjxZRNdYBdvFS1uuqXsHbajUjtnUtrHhOLSjSNoLo9/PW7hqQfoaxKCK879nCm7BU5B8/G2lR6a7gm6+iQ6KYt2PgVy6DfbuZdxmvfPYN9WXksk2iINVEnBnwCJQ+ApPheiPul+JI8zAoGBALaWuhIPVF3XceUcXjVhahrimpyQTiduEoLGgqlYLZME9rghopKoUcb3cPaDp0Yq0Yp+LJ47Dpe3E0l+IZCp6zeb056KmLv3Y4A7qSoGG5ge2uiDnWFGaYWcMgsEnkIspstMU9H1BCGPlAsE8u4qLARyzJ2PSsDdUSfUEOZTKp3T
-  public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyDywtkDGjqU2qgspMa8aSNxTuLtsrPWidA/8X+dQavaavBvGwrKmUTK1owaOEbranFSivhLwui0AiNnuYGeRaBB20xYvDgkCird41HkMdMqAxuWI4wtfklk7Wbx8bA1Si6xgvXZIIXgO0RmzIb7AsOTDCCo2MAiYAw9LlZTKOb2yEke3qxxcdxtLAetglkio5JnSJnGTCtU9qeJt3aPByUAKbhB//NN+zGtayVeuPA+aeVe/3/0CK3fysjF3o3e9StXQyah0rUP5+BJXkCHaZ1aCHjsU/CjvRq55N2wxuoSGXFym0yxXZlxZrJknMhvgwOzYyIri1e526dEmgnz9awIDAQAB
-
-  access-token-ttl-minutes: 15
-refresh-token:
-  ttl-days: 30
-  cookie-name: refresh-token
 
 
 

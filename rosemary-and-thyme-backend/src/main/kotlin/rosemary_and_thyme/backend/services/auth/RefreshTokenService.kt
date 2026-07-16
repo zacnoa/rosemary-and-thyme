@@ -1,3 +1,4 @@
+/*
 package rosemary_and_thyme.backend.services.auth
 
 import org.springframework.beans.factory.annotation.Value
@@ -79,4 +80,4 @@ class RefreshTokenService(
         val token = refreshTokenRepository.selectRefreshToken(tokenHash)
         refreshTokenRepository.revokeRefreshTokenFamily(token.familyId)
     }
-}
+}*/

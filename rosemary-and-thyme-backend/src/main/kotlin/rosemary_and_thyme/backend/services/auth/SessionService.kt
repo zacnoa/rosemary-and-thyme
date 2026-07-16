@@ -1,6 +1,7 @@
 package rosemary_and_thyme.backend.services.auth
 
 import org.springframework.stereotype.Service
+import rosemary_and_thyme.backend.exceptions.SessionException
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.repositories.auth.SessionRepository
 import rosemary_and_thyme.backend.repositories.auth.UserRepository
@@ -10,6 +11,8 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.io.encoding.Base64
+
+
 
 
 fun generateSessionToken(): String {
@@ -49,14 +52,14 @@ class SessionService(
         val hashedToken = hashToken(sessionToken)
 
         val session = sessionRepository.fetchSession(hashedToken)
-            ?: throw IllegalArgumentException("Invalid session")
+            ?: throw SessionException("Session with this id does not exist")
 
         if (session.expiresAt!!.isBefore(OffsetDateTime.now(ZoneOffset.UTC))) {
-            throw IllegalArgumentException("Invalid session")
+            throw SessionException("Session is expired")
         }
 
         val user = userRepository.selectUserById(session.userId)
-            ?: throw IllegalArgumentException("Invalid session")
+            ?: throw SessionException("The owner of this session does not exist")
 
         return user
     }

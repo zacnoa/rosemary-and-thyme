@@ -18,7 +18,7 @@ class SessionRepository(val dsl: DSLContext) {
             .set(SESSIONS.USER_ID, userId)
             .set(SESSIONS.SESSION_HASH, hashedToken)
             .returning()
-            .fetchOne()!!.sessionHash!!
+            .fetchOne()!!.sessionHash
 
     fun fetchSession(sessionHash: String ): SessionsRecord? =
         dsl.selectFrom(SESSIONS)

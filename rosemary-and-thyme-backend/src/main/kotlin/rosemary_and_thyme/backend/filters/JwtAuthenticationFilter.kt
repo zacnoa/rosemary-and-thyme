@@ -1,3 +1,4 @@
+/*
 package rosemary_and_thyme.backend.filters
 
 import io.jsonwebtoken.JwtException
@@ -8,7 +9,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
-import rosemary_and_thyme.backend.services.auth.JwtService
 
 @Component
 class JwtAuthenticationFilter(
@@ -51,3 +51,4 @@ class JwtAuthenticationFilter(
         filterChain.doFilter(request, response)
     }
 }
+*/

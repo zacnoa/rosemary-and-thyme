@@ -55,11 +55,11 @@ tasks.withType<Test> {
 }
 jooq {
     configuration {
-        jdbc{
+        jdbc {
             driver = "org.postgresql.Driver"
-            url = "jdbc:postgresql://localhost:432/rosemary_and_thyme"
-            user="noa"
-            password="noa"
+            url = System.getenv("DB_URL")
+            user = System.getenv("DB_USER")
+            password = System.getenv("DB_PASSWORD")
         }
         generator {
             name = "org.jooq.codegen.KotlinGenerator"
@@ -71,16 +71,16 @@ jooq {
                     schema {
                         inputSchema = "public"
                     }
-                    schema{
-                        inputSchema="auth"
+                    schema {
+                        inputSchema = "auth"
                     }
                 }
             }
             generate {
                 isGeneratedAnnotation = false
-                isKotlinNotNullPojoAttributes=true
-                isKotlinNotNullRecordAttributes=true
-                isKotlinNotNullInterfaceAttributes=true
+                isKotlinNotNullPojoAttributes = true
+                isKotlinNotNullRecordAttributes = true
+                isKotlinNotNullInterfaceAttributes = true
 
             }
             target {
@@ -89,8 +89,4 @@ jooq {
             }
         }
     }
-}
-
-tasks.named("compileKotlin"){
-    dependsOn(tasks.named("jooqCodegen"))
 }

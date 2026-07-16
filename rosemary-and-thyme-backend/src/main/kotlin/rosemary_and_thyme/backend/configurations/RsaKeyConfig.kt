@@ -1,3 +1,4 @@
+/*
 package rosemary_and_thyme.backend.configurations
 
 import org.springframework.beans.factory.annotation.Value
@@ -29,3 +30,4 @@ class RsaKeyConfig(
         return KeyFactory.getInstance("RSA").generatePublic(keySpec) as RSAPublicKey
     }
 }
+*/

@@ -1,3 +1,4 @@
+/*
 package rosemary_and_thyme.backend.services.auth
 
 import io.jsonwebtoken.Claims
@@ -42,3 +43,4 @@ class JwtService(
         UUID.fromString(parseToken(token).payload.subject)
 
 }
+*/
