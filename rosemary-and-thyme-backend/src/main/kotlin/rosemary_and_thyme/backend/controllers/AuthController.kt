@@ -27,18 +27,6 @@ class AuthController(
 ) {
 
 
-    @GetMapping("/aboutme")
-    fun aboutMe(@CookieValue(name="session_cookie", required = false) sessionToken:String?):ResponseEntity<UserDTO>{
-
-        if(sessionToken ==null) {
-            throw SessionException("User is not logged in")
-        }
-
-        val user=authService.validateSession(sessionToken)
-
-        return ResponseEntity.ok().body(UserDTO(user.id!!,user.username,user.email!!))
-
-    }
 
     @PostMapping("/register")
     fun register(@RequestBody request: RegisterRequest): ResponseEntity<Unit> {

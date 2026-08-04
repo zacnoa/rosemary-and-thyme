@@ -1,7 +1,11 @@
 package rosemary_and_thyme.backend.repositories.recipes
 
+import org.jooq.Condition
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import org.springframework.stereotype.Repository
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.HeroImages.Companion.HERO_IMAGES
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.Ingredients.Companion.INGREDIENTS
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.InstructionImages.Companion.INSTRUCTION_IMAGES
@@ -30,8 +34,7 @@ import kotlin.collections.partition
 @Repository
 class RecipeRepository(val dsl: DSLContext) {
 
-
-    fun saveRecipeBase(dto: RecipeDTO): UUID {
+    fun saveRecipeBase(dto: RecipeDTO, user: UsersRecord): UUID {
         /**
          * check if recipe with given id exists
          */
@@ -57,11 +60,15 @@ class RecipeRepository(val dsl: DSLContext) {
         }
         /**
          * if there is no recipe by that id insert new recipe and return the new id
+         *
+         * id, user_id and user_name are never taken from the client-submitted dto:
+         * the id is DB-generated (gen_random_uuid()) and the owner is always the
+         * authenticated principal, so the client cannot spoof another user's recipe
          */
         else {
             dsl.insertInto(RECIPES)
-                .set(RECIPES.USER_ID, dto.userId)
-                .set(RECIPES.USER_NAME, dto.userName)
+                .set(RECIPES.USER_ID, user.id)
+                .set(RECIPES.USER_NAME, user.username)
                 .set(RECIPES.NAME, dto.name)
                 .set(RECIPES.DESCRIPTION, dto.description)
                 .set(RECIPES.COOK_TIME, dto.cookTime)
@@ -74,6 +81,14 @@ class RecipeRepository(val dsl: DSLContext) {
                 ?.get(RECIPES.ID) ?: throw IllegalStateException("Failed to insert recipe")
         }
     }
+
+    fun selectAllRecipes(userId: UUID): List<Pair<UUID, String>> =
+
+        dsl.select(RECIPES.ID,RECIPES.NAME).from(RECIPES)
+            .where(RECIPES.USER_ID.eq(userId))
+            .limit(100)
+            .fetch{record -> Pair(record[RECIPES.ID]!!,record[RECIPES.NAME]!!)}
+
 
     fun saveIngredients(
         recipeId: UUID,
@@ -409,4 +424,22 @@ class RecipeRepository(val dsl: DSLContext) {
             .fetch(INSTRUCTION_IMAGES.IMAGE_ID)
             .filterNotNull()
             .toSet()
+
+    private fun nameSimilarity(term: String) =
+        DSL.function("similarity", SQLDataType.DOUBLE, RECIPES.NAME, DSL.value(term))
+
+    fun selectRecipesWithFilters(q: String? = null, userId: UUID? = null): List<Pair<UUID, String>> {
+        val conditions = mutableListOf<Condition>()
+
+        q?.let { conditions += DSL.condition("{0} % {1}", RECIPES.NAME, it) }
+        userId?.let { conditions += RECIPES.USER_ID.eq(it) }
+
+        return dsl.select(RECIPES.ID, RECIPES.NAME)
+            .from(RECIPES)
+            .where(conditions)
+            .orderBy(if (q != null) nameSimilarity(q).desc() else RECIPES.NAME.asc())
+            .limit(100)
+            .fetch { Pair(it[RECIPES.ID]!!, it[RECIPES.NAME]!!) }
+    }
+
 }

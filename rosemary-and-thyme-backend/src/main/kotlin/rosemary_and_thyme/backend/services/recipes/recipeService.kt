@@ -8,16 +8,18 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
+import rosemary_and_thyme.backend.exceptions.ForbiddenException
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.IngredientsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.InstructionsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.RecipesRecord
 import rosemary_and_thyme.backend.repositories.recipes.RecipeRepository
 import java.util.NoSuchElementException
 import java.util.UUID
-
 
 
 /**
@@ -29,6 +31,7 @@ import java.util.UUID
  */
 
 
+//TODO: add separate POST method for creating recipes
 @Service
 class RecipeService(
     private val recipeRepository: RecipeRepository,
@@ -83,7 +86,18 @@ class RecipeService(
 
     }
 
-    fun saveRecipe(recipe: RecipeDTO, imageFiles: Map<UUID, MultipartFile>): RecipeDTO = runBlocking {
+    fun saveRecipe(
+        recipe: RecipeDTO,
+        imageFiles: Map<UUID, MultipartFile>,
+        user: UsersRecord
+    ): RecipeDTO = runBlocking {
+
+        val recipeBase = recipeRepository.fetchRecipeBase(recipe.id)
+
+        if (recipeBase != null && recipeBase.userId != user.id) {
+            throw ForbiddenException("You are not the owner of this recipe")
+        }
+
 
         val uploadedUrls = mutableListOf<Pair<UUID, String>>()
 
@@ -122,9 +136,9 @@ class RecipeService(
                 }
             }
 
-            saveRecipeAfterImageUpload(recipe.copy(images = uploadedImages))
+            val recipeId = saveRecipeAfterImageUpload(recipe.copy(images = uploadedImages), user)
 
-            findRecipeById(recipe.id)
+            findRecipeById(recipeId)
 
         } catch (e: Exception) {
             /**
@@ -143,14 +157,19 @@ class RecipeService(
     }
 
     @Transactional
-    fun saveRecipeAfterImageUpload(recipe: RecipeDTO) {
+    fun saveRecipeAfterImageUpload(recipe: RecipeDTO, user: UsersRecord): UUID {
         /**
          * This call is not async because before we call any other query we need the real id of the recipe
          */
-        val recipeId = recipeRepository.saveRecipeBase(recipe)
+        val recipeId = recipeRepository.saveRecipeBase(recipe, user)
         recipeRepository.saveIngredients(recipeId, recipe.ingredients, recipe.ingredientsOrder)
         recipeRepository.saveHeroImages(recipeId, recipe.images, recipe.heroImagesOrder)
         recipeRepository.saveInstructions(recipeId, recipe.instructions, recipe.instructionsOrder, recipe.images)
+        return recipeId
     }
+
+    fun searchRecipes(q: String? = null, userId: UUID? = null): List<Pair<UUID, String>> =
+
+        recipeRepository.selectRecipesWithFilters(q, userId)
 
 }

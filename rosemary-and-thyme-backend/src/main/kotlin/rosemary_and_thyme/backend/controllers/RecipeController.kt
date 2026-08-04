@@ -1,8 +1,8 @@
 package rosemary_and_thyme.backend.controllers
 
-import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.util.MultiValueMap
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.services.recipes.RecipeDTO
 import rosemary_and_thyme.backend.services.recipes.RecipeService
 import java.util.UUID
@@ -47,7 +48,8 @@ class RecipeController(private val recipeService: RecipeService) {
     fun saveRecipe(
         @PathVariable id: UUID,
         @RequestPart("recipe") dto: RecipeDTO,
-        @RequestParam allParts: MultiValueMap<String, MultipartFile>
+        @RequestParam allParts: MultiValueMap<String, MultipartFile>,
+        @AuthenticationPrincipal user: UsersRecord
     ): ResponseEntity<RecipeDTO> {
         /**
          * Filters recipe part from allParts
@@ -57,7 +59,16 @@ class RecipeController(private val recipeService: RecipeService) {
             .mapKeys { UUID.fromString(it.key) }
             .mapValues { it.value.first() }
 
-        val recipe=recipeService.saveRecipe(dto, images)
+        val recipe = recipeService.saveRecipe(dto, images,user)
         return ResponseEntity.ok(recipe)
     }
+
+    @GetMapping("/search")
+    fun searchRecipes(
+        @RequestParam(required = false) q: String?,
+        @RequestParam(required = false) userId: UUID?,
+        @RequestParam(required = false) difficulty: Int?
+    ): ResponseEntity<List<Pair<UUID, String>>> =
+        ResponseEntity.ok(recipeService.searchRecipes(q, userId))
+
 }

@@ -2,17 +2,20 @@ package rosemary_and_thyme.backend.configurations
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.HttpMethod
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
+import rosemary_and_thyme.backend.filters.SessionAuthFilter
 
 @Configuration
 @EnableWebSecurity
-class SecurityConfig {
+class SecurityConfig(private val sessionFilter: SessionAuthFilter) {
 
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
@@ -33,18 +36,20 @@ class SecurityConfig {
             .cors { it.configurationSource(corsConfigurationSource()) }
             .csrf { it.disable() } // pazi na napomenu ispod o CSRF-u kod session auth-a
             .sessionManagement {
-                it.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                it.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             }
             .authorizeHttpRequests {
                 it.requestMatchers(
                     "/auth/login",
-                    "/auth/register",
-                    "/auth/refresh",
-                    "/auth/aboutme",
-                    "/recipe/**"
+                    "/auth/register"
                 ).permitAll()
+                it.requestMatchers(HttpMethod.GET, "/recipe/{id}").permitAll()
                 it.anyRequest().authenticated()
             }
+            .addFilterBefore(
+                sessionFilter,
+                UsernamePasswordAuthenticationFilter::class.java
+            )
 
         return http.build()
     }

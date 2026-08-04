@@ -7,6 +7,7 @@ import org.springframework.http.ProblemDetail
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import rosemary_and_thyme.backend.exceptions.ForbiddenException
 import rosemary_and_thyme.backend.exceptions.SessionException
 import rosemary_and_thyme.backend.exceptions.UserAlreadyExistsException
 import rosemary_and_thyme.backend.exceptions.UserCredentialsException
@@ -52,6 +53,14 @@ class GlobalExceptionHandler {
                 instance = URI.create(request.requestURI)
             }
 
+    @ExceptionHandler(ForbiddenException::class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    fun handleForbiddenException(e: ForbiddenException, request: HttpServletRequest): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.message)
+            .apply {
+                title = "Invalid Authorization"
+                instance = URI.create(request.requestURI)
+            }
 
     @ExceptionHandler(Exception::class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
