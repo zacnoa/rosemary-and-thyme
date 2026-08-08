@@ -2,27 +2,39 @@
 -- the actual query patterns in RecipeRepository / UserRepository / SessionRepository
 -- and adjusted: added missing FK, missing indexes, pg_trgm extension for search,
 -- and removed indexes that duplicated an existing primary key index.
-BEGIN;
+--
+-- This file is fed directly to jOOQ's DDLDatabase codegen (build.gradle.kts) -
+-- it holds only structural DDL (extension, schemas, tables, columns/types, FK
+-- constraints). Indexes have no bearing on the generated Kotlin classes, so
+-- all of them (not just the one jOOQ's parser can't handle) live in
+-- db/indexes.sql instead, applied separately after this file.
+--
+-- No BEGIN/COMMIT wrapper here on purpose - jOOQ's DDLDatabase parses
+-- individual DDL statements and doesn't understand psql transaction-control
+-- commands. Apply atomically with `psql -1 -f db/schema.sql` if that matters.
 
 -- required for the `%` similarity operator and similarity() used by
 -- RecipeRepository.selectRecipesWithFilters() (fuzzy recipe name search)
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
+-- named app_auth (not auth) because Supabase reserves the `auth` schema for
+-- its own built-in authentication system
+CREATE SCHEMA IF NOT EXISTS app_auth;
 
-CREATE TABLE IF NOT EXISTS auth.sessions
+CREATE TABLE IF NOT EXISTS app_auth.sessions
 (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL,
     session_hash character varying(64) COLLATE pg_catalog."default" NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
-    expires_at timestamp with time zone NOT NULL DEFAULT (now() + '30 days'::interval),
+    expires_at timestamp with time zone NOT NULL DEFAULT (now() + INTERVAL '30' DAY),
     last_used_at timestamp with time zone NOT NULL DEFAULT now(),
     revoked boolean NOT NULL DEFAULT false,
     CONSTRAINT sessions_pkey PRIMARY KEY (id),
     CONSTRAINT sessions_hash_key UNIQUE (session_hash)
 );
 
-CREATE TABLE IF NOT EXISTS auth.users
+CREATE TABLE IF NOT EXISTS app_auth.users
 (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     password character varying(255) COLLATE pg_catalog."default" NOT NULL,
@@ -33,13 +45,13 @@ CREATE TABLE IF NOT EXISTS auth.users
     CONSTRAINT users_email_key UNIQUE (email)
 );
 
-CREATE TABLE IF NOT EXISTS auth.email_verification_tokens
+CREATE TABLE IF NOT EXISTS app_auth.email_verification_tokens
 (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL,
     token_hash character varying(64) COLLATE pg_catalog."default" NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
-    expires_at timestamp with time zone NOT NULL DEFAULT (now() + '24 hours'::interval),
+    expires_at timestamp with time zone NOT NULL DEFAULT (now() + INTERVAL '24' HOUR),
     used_at timestamp with time zone,
     CONSTRAINT email_verification_tokens_pkey PRIMARY KEY (id),
     CONSTRAINT email_verification_tokens_hash_key UNIQUE (token_hash)
@@ -109,98 +121,60 @@ CREATE TABLE IF NOT EXISTS public.recipes
     CONSTRAINT recipes_difficulty_check CHECK (difficulty >= 1 AND difficulty <= 5)
 );
 
-ALTER TABLE IF EXISTS auth.sessions
+-- MATCH SIMPLE is Postgres's default FK matching behavior when omitted -
+-- dropped here (vs. what pgAdmin's ERD tool emits) purely because jOOQ's
+-- DDLDatabase parser doesn't recognize the MATCH clause; no functional change.
+
+ALTER TABLE IF EXISTS app_auth.sessions
     ADD CONSTRAINT sessions_user_id_fkey FOREIGN KEY (user_id)
-    REFERENCES auth.users (id) MATCH SIMPLE
+    REFERENCES app_auth.users (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;
 
--- FK columns are not auto-indexed by Postgres; SessionService looks sessions up
--- by session_hash today, but cascading deletes from auth.users and any future
--- "list/revoke sessions for user" query need this.
-CREATE INDEX IF NOT EXISTS sessions_user_id_idx
-    ON auth.sessions(user_id);
-
-
-ALTER TABLE IF EXISTS auth.email_verification_tokens
+ALTER TABLE IF EXISTS app_auth.email_verification_tokens
     ADD CONSTRAINT email_verification_tokens_user_id_fkey FOREIGN KEY (user_id)
-    REFERENCES auth.users (id) MATCH SIMPLE
+    REFERENCES app_auth.users (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;
-
--- EmailVerificationRepository looks up tokens by user_id when invalidating
--- outstanding tokens on resend, and this FK column isn't auto-indexed.
-CREATE INDEX IF NOT EXISTS email_verification_tokens_user_id_idx
-    ON auth.email_verification_tokens(user_id);
-
 
 ALTER TABLE IF EXISTS public.hero_images
     ADD CONSTRAINT hero_images_image_id_fkey FOREIGN KEY (image_id)
-    REFERENCES public.images (id) MATCH SIMPLE
+    REFERENCES public.images (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;
--- no extra index needed here: image_id is already the primary key of hero_images
-
 
 ALTER TABLE IF EXISTS public.hero_images
     ADD CONSTRAINT hero_images_recipe_id_fkey FOREIGN KEY (recipe_id)
-    REFERENCES public.recipes (id) MATCH SIMPLE
+    REFERENCES public.recipes (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;
--- recipe_id lookups (fetchHeroImages, fetchHeroImageIds) are covered by the
--- leftmost column of hero_images_recipe_id_index_key
-
 
 ALTER TABLE IF EXISTS public.ingredients
     ADD CONSTRAINT ingredients_recipe_id_fkey FOREIGN KEY (recipe_id)
-    REFERENCES public.recipes (id) MATCH SIMPLE
+    REFERENCES public.recipes (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;
--- recipe_id lookups (fetchIngredients, saveIngredients) are covered by the
--- leftmost column of ingredients_recipe_id_index_key
-
 
 ALTER TABLE IF EXISTS public.instruction_images
     ADD CONSTRAINT instruction_images_image_id_fkey FOREIGN KEY (image_id)
-    REFERENCES public.images (id) MATCH SIMPLE
+    REFERENCES public.images (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;
--- no extra index needed here: image_id is already the primary key of instruction_images
-
 
 ALTER TABLE IF EXISTS public.instruction_images
     ADD CONSTRAINT instruction_images_instruction_id_fkey FOREIGN KEY (instruction_id)
-    REFERENCES public.instructions (id) MATCH SIMPLE
+    REFERENCES public.instructions (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;
--- instruction_id lookups (fetchInstructionImages, saveInstructionImages) are covered
--- by the leftmost column of instruction_images_instruction_id_index_key
-
 
 ALTER TABLE IF EXISTS public.instructions
     ADD CONSTRAINT instructions_recipe_id_fkey FOREIGN KEY (recipe_id)
-    REFERENCES public.recipes (id) MATCH SIMPLE
+    REFERENCES public.recipes (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;
--- recipe_id lookups (fetchInstructions, saveInstructions) are covered by the
--- leftmost column of instructions_recipe_id_index_key
-
 
 ALTER TABLE IF EXISTS public.recipes
     ADD CONSTRAINT recipes_user_id_fkey FOREIGN KEY (user_id)
-    REFERENCES auth.users (id) MATCH SIMPLE
+    REFERENCES app_auth.users (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;
-
--- selectAllRecipes() and selectRecipesWithFilters() filter by user_id;
--- this column had no index at all before.
-CREATE INDEX IF NOT EXISTS recipes_user_id_idx
-    ON public.recipes(user_id);
-
--- selectRecipesWithFilters() runs `RECIPES.NAME % :term` and orders by
--- similarity(name, :term) - without this GIN trigram index every search
--- is a full sequential scan over recipes.
-CREATE INDEX IF NOT EXISTS recipes_name_trgm_idx
-    ON public.recipes USING gin (name gin_trgm_ops);
-
-END;

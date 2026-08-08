@@ -3,8 +3,8 @@ package rosemary_and_thyme.backend.repositories.auth
 
 import org.jooq.DSLContext
 import org.springframework.stereotype.Repository
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.RefreshTokensRecord
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.references.REFRESH_TOKENS
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.RefreshTokensRecord
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.references.REFRESH_TOKENS
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import java.util.UUID

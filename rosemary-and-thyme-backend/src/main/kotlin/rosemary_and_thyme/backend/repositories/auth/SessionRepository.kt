@@ -2,8 +2,8 @@ package rosemary_and_thyme.backend.repositories.auth
 
 import org.jooq.DSLContext
 import org.springframework.stereotype.Repository
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.SessionsRecord
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.references.SESSIONS
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.SessionsRecord
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.references.SESSIONS
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.time.ZoneOffset

@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.repositories.dbNotNull
 import rosemary_and_thyme.backend.services.recipes.RecipeService
 import java.util.UUID

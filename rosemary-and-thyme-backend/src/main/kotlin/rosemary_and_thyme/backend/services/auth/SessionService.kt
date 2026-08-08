@@ -2,7 +2,7 @@ package rosemary_and_thyme.backend.services.auth
 
 import org.springframework.stereotype.Service
 import rosemary_and_thyme.backend.exceptions.SessionException
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.repositories.auth.SessionRepository
 import rosemary_and_thyme.backend.repositories.auth.UserRepository
 import rosemary_and_thyme.backend.repositories.dbNotNull

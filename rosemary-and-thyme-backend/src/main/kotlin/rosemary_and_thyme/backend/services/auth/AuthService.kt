@@ -5,7 +5,7 @@ import rosemary_and_thyme.backend.exceptions.TooManyRequestsException
 import rosemary_and_thyme.backend.exceptions.UserCredentialsException
 import org.springframework.stereotype.Service
 import org.springframework.security.crypto.bcrypt.BCrypt
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.models.RegisterRequest
 import rosemary_and_thyme.backend.repositories.auth.UserRepository
 import rosemary_and_thyme.backend.repositories.dbNotNull

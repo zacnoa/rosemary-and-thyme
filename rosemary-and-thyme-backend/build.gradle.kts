@@ -43,7 +43,7 @@ dependencies {
     implementation("com.cloudinary:cloudinary-http5:2.3.2")
 
     runtimeOnly("org.postgresql:postgresql")
-    jooqCodegen("org.postgresql:postgresql")
+    jooqCodegen("org.jooq:jooq-meta-extensions:3.21.2")
 
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
@@ -66,24 +66,40 @@ tasks.withType<Test> {
 }
 jooq {
     configuration {
-        jdbc {
-            driver = "org.postgresql.Driver"
-            url = System.getenv("DB_URL")
-            user = System.getenv("DB_USER")
-            password = System.getenv("DB_PASSWORD")
-        }
         generator {
             name = "org.jooq.codegen.KotlinGenerator"
             database {
-                name = "org.jooq.meta.postgres.PostgresDatabase"
+                // Parses db/schema.sql directly instead of introspecting a live
+                // database - codegen no longer needs DB_URL/credentials or network
+                // access, so it's safe to run as part of every build (see
+                // compileKotlin.dependsOn below). db/indexes.sql is deliberately
+                // NOT included here - see the comment in that file.
+                name = "org.jooq.meta.extensions.ddl.DDLDatabase"
                 includes = ".*"
+                properties {
+                    property {
+                        key = "scripts"
+                        value = "db/schema.sql"
+                    }
+                    property {
+                        key = "sort"
+                        value = "semantic"
+                    }
+                }
                 schemata {
-
                     schema {
-                        inputSchema = "public"
+                        // H2 (used internally by DDLDatabase to simulate the DDL)
+                        // treats PUBLIC as its own built-in default schema name;
+                        // map it back to "public" so generated packages match
+                        // what's actually in Postgres.
+                        inputSchema = "PUBLIC"
+                        outputSchema = "public"
                     }
                     schema {
-                        inputSchema = "auth"
+                        // Same case-folding reason as PUBLIC above - H2 uppercases
+                        // unquoted identifiers internally.
+                        inputSchema = "APP_AUTH"
+                        outputSchema = "app_auth"
                     }
                 }
             }
@@ -100,4 +116,8 @@ jooq {
             }
         }
     }
+}
+
+tasks.named("compileKotlin") {
+    dependsOn("jooqCodegen")
 }

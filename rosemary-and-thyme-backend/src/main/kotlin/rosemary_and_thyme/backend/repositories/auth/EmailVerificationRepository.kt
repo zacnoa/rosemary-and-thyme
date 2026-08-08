@@ -2,8 +2,8 @@ package rosemary_and_thyme.backend.repositories.auth
 
 import org.jooq.DSLContext
 import org.springframework.stereotype.Repository
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.EmailVerificationTokensRecord
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.references.EMAIL_VERIFICATION_TOKENS
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.EmailVerificationTokensRecord
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.references.EMAIL_VERIFICATION_TOKENS
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID

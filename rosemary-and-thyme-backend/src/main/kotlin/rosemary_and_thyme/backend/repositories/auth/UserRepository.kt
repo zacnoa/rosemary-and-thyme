@@ -4,8 +4,8 @@ import org.jooq.DSLContext
 import org.springframework.dao.DataAccessException
 import org.springframework.stereotype.Repository
 import rosemary_and_thyme.backend.exceptions.UserAlreadyExistsException
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.references.USERS
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.references.USERS
 import java.sql.SQLException
 import java.util.UUID
 

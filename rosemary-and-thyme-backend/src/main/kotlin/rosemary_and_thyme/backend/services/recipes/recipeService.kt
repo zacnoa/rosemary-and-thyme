@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
 import rosemary_and_thyme.backend.exceptions.ForbiddenException
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
+import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.IngredientsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.InstructionsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.RecipesRecord

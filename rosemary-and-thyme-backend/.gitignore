@@ -39,3 +39,8 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### jOOQ ###
+# Generated from db/schema.sql by the jooqCodegen task (wired into compileKotlin) -
+# not tracked, always regenerated fresh from the tracked schema file.
+/src/main/kotlin/rosemary_and_thyme/backend/jooqgenerated/
