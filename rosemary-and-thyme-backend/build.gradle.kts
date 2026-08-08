@@ -16,6 +16,15 @@ java {
     }
 }
 
+// Spring Boot's plugin also runs the plain `jar` task by default, producing a
+// second, non-executable jar (backend-x.y.z-plain.jar) alongside the real bootJar.
+// Disabling it keeps build/libs/*.jar unambiguous - relevant for Railway, whose
+// start command globs for a single jar there and would otherwise sometimes pick
+// the plain one (no Main-Class manifest -> "no main manifest attribute" crash).
+tasks.named<Jar>("jar") {
+    enabled = false
+}
+
 repositories {
     mavenCentral()
 }
