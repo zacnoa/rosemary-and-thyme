@@ -12,7 +12,11 @@ description = "rosemary-and-thyme-backend"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(24)
+        // Railway's runtime image only ships Java 21 - compiling for a newer
+        // toolchain here (was 24) produces class files the deploy container's
+        // JVM can't load (UnsupportedClassVersionError). 21 is an LTS release,
+        // fully supported by Kotlin 2.2.21 / Spring Boot 4.0.5.
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
