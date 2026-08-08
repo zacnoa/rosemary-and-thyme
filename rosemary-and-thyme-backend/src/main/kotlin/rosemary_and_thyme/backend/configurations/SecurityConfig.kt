@@ -1,5 +1,6 @@
 package rosemary_and_thyme.backend.configurations
 
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
@@ -18,13 +19,14 @@ import rosemary_and_thyme.backend.filters.SessionAuthFilter
 @EnableWebSecurity
 class SecurityConfig(
     private val sessionFilter: SessionAuthFilter,
-    private val rateLimitFilter: RateLimitFilter
+    private val rateLimitFilter: RateLimitFilter,
+    @Value($$"${app.frontend-url}") private val frontendUrl: String
 ) {
 
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration()
-        configuration.allowedOrigins = listOf("http://localhost:3000")
+        configuration.allowedOrigins = listOf(frontendUrl)
         configuration.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
         configuration.allowedHeaders = listOf("*")
         configuration.allowCredentials = true
