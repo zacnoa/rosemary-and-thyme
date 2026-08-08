@@ -11,6 +11,10 @@ import org.jooq.impl.DSL
 import org.jooq.impl.Internal
 import org.jooq.impl.QOM.ForeignKeyRule
 
+import rosemary_and_thyme.backend.jooqgenerated.auth.keys.USERS_PKEY
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Users
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
+
 
 
 // -------------------------------------------------------------------------
@@ -38,3 +42,4 @@ val INGREDIENTS__INGREDIENTS_RECIPE_ID_FKEY: ForeignKey<rosemary_and_thyme.backe
 val INSTRUCTION_IMAGES__INSTRUCTION_IMAGES_IMAGE_ID_FKEY: ForeignKey<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord, rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.ImagesRecord> = Internal.createForeignKey(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.InstructionImages.INSTRUCTION_IMAGES, DSL.name("instruction_images_image_id_fkey"), arrayOf(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.InstructionImages.INSTRUCTION_IMAGES.IMAGE_ID), rosemary_and_thyme.backend.jooqgenerated.`public`.keys.IMAGES_PKEY, arrayOf(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Images.IMAGES.ID), true, ForeignKeyRule.CASCADE, ForeignKeyRule.NO_ACTION)
 val INSTRUCTION_IMAGES__INSTRUCTION_IMAGES_INSTRUCTION_ID_FKEY: ForeignKey<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionImagesRecord, rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionsRecord> = Internal.createForeignKey(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.InstructionImages.INSTRUCTION_IMAGES, DSL.name("instruction_images_instruction_id_fkey"), arrayOf(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.InstructionImages.INSTRUCTION_IMAGES.INSTRUCTION_ID), rosemary_and_thyme.backend.jooqgenerated.`public`.keys.INSTRUCTIONS_PKEY, arrayOf(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Instructions.INSTRUCTIONS.ID), true, ForeignKeyRule.CASCADE, ForeignKeyRule.NO_ACTION)
 val INSTRUCTIONS__INSTRUCTIONS_RECIPE_ID_FKEY: ForeignKey<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.InstructionsRecord, rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.RecipesRecord> = Internal.createForeignKey(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Instructions.INSTRUCTIONS, DSL.name("instructions_recipe_id_fkey"), arrayOf(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Instructions.INSTRUCTIONS.RECIPE_ID), rosemary_and_thyme.backend.jooqgenerated.`public`.keys.RECIPES_PKEY, arrayOf(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RECIPES.ID), true, ForeignKeyRule.CASCADE, ForeignKeyRule.NO_ACTION)
+val RECIPES__RECIPES_USER_ID_FKEY: ForeignKey<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.RecipesRecord, UsersRecord> = Internal.createForeignKey(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RECIPES, DSL.name("recipes_user_id_fkey"), arrayOf(rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RECIPES.USER_ID), USERS_PKEY, arrayOf(Users.USERS.ID), true, ForeignKeyRule.CASCADE, ForeignKeyRule.NO_ACTION)

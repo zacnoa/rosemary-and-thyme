@@ -8,10 +8,13 @@ import java.time.LocalDate
 import java.util.UUID
 
 import kotlin.collections.Collection
+import kotlin.collections.List
 
+import org.jooq.Check
 import org.jooq.Condition
 import org.jooq.Field
 import org.jooq.ForeignKey
+import org.jooq.Index
 import org.jooq.InverseForeignKey
 import org.jooq.Name
 import org.jooq.Path
@@ -30,6 +33,8 @@ import org.jooq.impl.DSL
 import org.jooq.impl.Internal
 import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
+
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Users.UsersPath
 
 
 /**
@@ -156,7 +161,15 @@ open class Recipes(
         override fun `as`(alias: Table<*>): RecipesPath = RecipesPath(alias.qualifiedName, this)
     }
     override fun getSchema(): Schema? = if (aliased()) null else rosemary_and_thyme.backend.jooqgenerated.`public`.Public.PUBLIC
+    override fun getIndexes(): List<Index> = listOf(rosemary_and_thyme.backend.jooqgenerated.`public`.indexes.RECIPES_NAME_TRGM_IDX, rosemary_and_thyme.backend.jooqgenerated.`public`.indexes.RECIPES_USER_ID_IDX)
     override fun getPrimaryKey(): UniqueKey<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.RecipesRecord> = rosemary_and_thyme.backend.jooqgenerated.`public`.keys.RECIPES_PKEY
+    override fun getReferences(): List<ForeignKey<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.RecipesRecord, *>> = listOf(rosemary_and_thyme.backend.jooqgenerated.`public`.keys.RECIPES__RECIPES_USER_ID_FKEY)
+
+    /**
+     * Get the implicit join path to the <code>auth.users</code> table.
+     */
+    fun users(): UsersPath = users
+    val users: UsersPath by lazy { UsersPath(this, rosemary_and_thyme.backend.jooqgenerated.`public`.keys.RECIPES__RECIPES_USER_ID_FKEY, null) }
 
     private lateinit var _heroImages: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.HeroImages.HeroImagesPath
 
@@ -205,6 +218,9 @@ open class Recipes(
 
     val instructions: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Instructions.InstructionsPath
         get(): rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Instructions.InstructionsPath = instructions()
+    override fun getChecks(): List<Check<rosemary_and_thyme.backend.jooqgenerated.`public`.tables.records.RecipesRecord>> = listOf(
+        Internal.createCheck(this, DSL.name("recipes_difficulty_check"), "(((difficulty >= 1) AND (difficulty <= 5)))", true)
+    )
     override fun `as`(alias: String): Recipes = Recipes(DSL.name(alias), this)
     override fun `as`(alias: Name): Recipes = Recipes(alias, this)
     override fun `as`(alias: Table<*>): Recipes = Recipes(alias.qualifiedName, this)

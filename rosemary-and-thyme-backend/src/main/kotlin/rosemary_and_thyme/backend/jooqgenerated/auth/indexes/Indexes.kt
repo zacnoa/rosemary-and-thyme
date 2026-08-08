@@ -9,7 +9,7 @@ import org.jooq.Index
 import org.jooq.impl.DSL
 import org.jooq.impl.Internal
 
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.RefreshTokens
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.EmailVerificationTokens
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Sessions
 
 
@@ -18,5 +18,5 @@ import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Sessions
 // INDEX definitions
 // -------------------------------------------------------------------------
 
-val IDX_REFRESH_TOKENS_USER: Index = Internal.createIndex(DSL.name("idx_refresh_tokens_user"), RefreshTokens.REFRESH_TOKENS, arrayOf(RefreshTokens.REFRESH_TOKENS.USER_ID), false)
-val IDX_SESSIONS_HASH: Index = Internal.createIndex(DSL.name("idx_sessions_hash"), Sessions.SESSIONS, arrayOf(Sessions.SESSIONS.SESSION_HASH), false)
+val EMAIL_VERIFICATION_TOKENS_USER_ID_IDX: Index = Internal.createIndex(DSL.name("email_verification_tokens_user_id_idx"), EmailVerificationTokens.EMAIL_VERIFICATION_TOKENS, arrayOf(EmailVerificationTokens.EMAIL_VERIFICATION_TOKENS.USER_ID), false)
+val SESSIONS_USER_ID_IDX: Index = Internal.createIndex(DSL.name("sessions_user_id_idx"), Sessions.SESSIONS, arrayOf(Sessions.SESSIONS.USER_ID), false)

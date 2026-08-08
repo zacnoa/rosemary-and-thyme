@@ -32,11 +32,11 @@ import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 
 import rosemary_and_thyme.backend.jooqgenerated.auth.Auth
-import rosemary_and_thyme.backend.jooqgenerated.auth.keys.REFRESH_TOKENS__REFRESH_TOKENS_USER_ID_FKEY
+import rosemary_and_thyme.backend.jooqgenerated.auth.keys.EMAIL_VERIFICATION_TOKENS__EMAIL_VERIFICATION_TOKENS_USER_ID_FKEY
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.SESSIONS__SESSIONS_USER_ID_FKEY
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.USERS_EMAIL_KEY
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.USERS_PKEY
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.RefreshTokens.RefreshTokensPath
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.EmailVerificationTokens.EmailVerificationTokensPath
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Sessions.SessionsPath
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
 
@@ -98,6 +98,11 @@ open class Users(
      */
     val EMAIL: TableField<UsersRecord, String?> = createField(DSL.name("email"), SQLDataType.VARCHAR(100), this, "")
 
+    /**
+     * The column <code>auth.users.email_verified</code>.
+     */
+    val EMAIL_VERIFIED: TableField<UsersRecord, Boolean?> = createField(DSL.name("email_verified"), SQLDataType.BOOLEAN.nullable(false).defaultValue(DSL.field(DSL.raw("false"), SQLDataType.BOOLEAN)), this, "")
+
     private constructor(alias: Name, aliased: Table<UsersRecord>?): this(alias, null, null, null, aliased, null, null)
     private constructor(alias: Name, aliased: Table<UsersRecord>?, parameters: Array<Field<*>?>?): this(alias, null, null, null, aliased, parameters, null)
     private constructor(alias: Name, aliased: Table<UsersRecord>?, where: Condition?): this(alias, null, null, null, aliased, null, where)
@@ -133,21 +138,21 @@ open class Users(
     override fun getPrimaryKey(): UniqueKey<UsersRecord> = USERS_PKEY
     override fun getUniqueKeys(): List<UniqueKey<UsersRecord>> = listOf(USERS_EMAIL_KEY)
 
-    private lateinit var _refreshTokens: RefreshTokensPath
+    private lateinit var _emailVerificationTokens: EmailVerificationTokensPath
 
     /**
      * Get the implicit to-many join path to the
-     * <code>auth.refresh_tokens</code> table
+     * <code>auth.email_verification_tokens</code> table
      */
-    fun refreshTokens(): RefreshTokensPath {
-        if (!this::_refreshTokens.isInitialized)
-            _refreshTokens = RefreshTokensPath(this, null, REFRESH_TOKENS__REFRESH_TOKENS_USER_ID_FKEY.inverseKey)
+    fun emailVerificationTokens(): EmailVerificationTokensPath {
+        if (!this::_emailVerificationTokens.isInitialized)
+            _emailVerificationTokens = EmailVerificationTokensPath(this, null, EMAIL_VERIFICATION_TOKENS__EMAIL_VERIFICATION_TOKENS_USER_ID_FKEY.inverseKey)
 
-        return _refreshTokens;
+        return _emailVerificationTokens;
     }
 
-    val refreshTokens: RefreshTokensPath
-        get(): RefreshTokensPath = refreshTokens()
+    val emailVerificationTokens: EmailVerificationTokensPath
+        get(): EmailVerificationTokensPath = emailVerificationTokens()
 
     private lateinit var _sessions: SessionsPath
 
@@ -164,6 +169,22 @@ open class Users(
 
     val sessions: SessionsPath
         get(): SessionsPath = sessions()
+
+    private lateinit var _recipes: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RecipesPath
+
+    /**
+     * Get the implicit to-many join path to the <code>public.recipes</code>
+     * table
+     */
+    fun recipes(): rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RecipesPath {
+        if (!this::_recipes.isInitialized)
+            _recipes = rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RecipesPath(this, null, rosemary_and_thyme.backend.jooqgenerated.`public`.keys.RECIPES__RECIPES_USER_ID_FKEY.inverseKey)
+
+        return _recipes;
+    }
+
+    val recipes: rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RecipesPath
+        get(): rosemary_and_thyme.backend.jooqgenerated.`public`.tables.Recipes.RecipesPath = recipes()
     override fun `as`(alias: String): Users = Users(DSL.name(alias), this)
     override fun `as`(alias: Name): Users = Users(alias, this)
     override fun `as`(alias: Table<*>): Users = Users(alias.qualifiedName, this)

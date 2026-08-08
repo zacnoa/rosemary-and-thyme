@@ -11,10 +11,10 @@ import org.jooq.impl.DSL
 import org.jooq.impl.Internal
 import org.jooq.impl.QOM.ForeignKeyRule
 
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.RefreshTokens
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.EmailVerificationTokens
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Sessions
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Users
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.RefreshTokensRecord
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.EmailVerificationTokensRecord
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.SessionsRecord
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
 
@@ -24,8 +24,8 @@ import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
 // UNIQUE and PRIMARY KEY definitions
 // -------------------------------------------------------------------------
 
-val REFRESH_TOKENS_PKEY: UniqueKey<RefreshTokensRecord> = Internal.createUniqueKey(RefreshTokens.REFRESH_TOKENS, DSL.name("refresh_tokens_pkey"), arrayOf(RefreshTokens.REFRESH_TOKENS.ID), true)
-val REFRESH_TOKENS_TOKEN_HASH_KEY: UniqueKey<RefreshTokensRecord> = Internal.createUniqueKey(RefreshTokens.REFRESH_TOKENS, DSL.name("refresh_tokens_token_hash_key"), arrayOf(RefreshTokens.REFRESH_TOKENS.TOKEN_HASH), true)
+val EMAIL_VERIFICATION_TOKENS_HASH_KEY: UniqueKey<EmailVerificationTokensRecord> = Internal.createUniqueKey(EmailVerificationTokens.EMAIL_VERIFICATION_TOKENS, DSL.name("email_verification_tokens_hash_key"), arrayOf(EmailVerificationTokens.EMAIL_VERIFICATION_TOKENS.TOKEN_HASH), true)
+val EMAIL_VERIFICATION_TOKENS_PKEY: UniqueKey<EmailVerificationTokensRecord> = Internal.createUniqueKey(EmailVerificationTokens.EMAIL_VERIFICATION_TOKENS, DSL.name("email_verification_tokens_pkey"), arrayOf(EmailVerificationTokens.EMAIL_VERIFICATION_TOKENS.ID), true)
 val SESSIONS_HASH_KEY: UniqueKey<SessionsRecord> = Internal.createUniqueKey(Sessions.SESSIONS, DSL.name("sessions_hash_key"), arrayOf(Sessions.SESSIONS.SESSION_HASH), true)
 val SESSIONS_PKEY: UniqueKey<SessionsRecord> = Internal.createUniqueKey(Sessions.SESSIONS, DSL.name("sessions_pkey"), arrayOf(Sessions.SESSIONS.ID), true)
 val USERS_EMAIL_KEY: UniqueKey<UsersRecord> = Internal.createUniqueKey(Users.USERS, DSL.name("users_email_key"), arrayOf(Users.USERS.EMAIL), true)
@@ -35,5 +35,5 @@ val USERS_PKEY: UniqueKey<UsersRecord> = Internal.createUniqueKey(Users.USERS, D
 // FOREIGN KEY definitions
 // -------------------------------------------------------------------------
 
-val REFRESH_TOKENS__REFRESH_TOKENS_USER_ID_FKEY: ForeignKey<RefreshTokensRecord, UsersRecord> = Internal.createForeignKey(RefreshTokens.REFRESH_TOKENS, DSL.name("refresh_tokens_user_id_fkey"), arrayOf(RefreshTokens.REFRESH_TOKENS.USER_ID), rosemary_and_thyme.backend.jooqgenerated.auth.keys.USERS_PKEY, arrayOf(Users.USERS.ID), true, ForeignKeyRule.CASCADE, ForeignKeyRule.NO_ACTION)
+val EMAIL_VERIFICATION_TOKENS__EMAIL_VERIFICATION_TOKENS_USER_ID_FKEY: ForeignKey<EmailVerificationTokensRecord, UsersRecord> = Internal.createForeignKey(EmailVerificationTokens.EMAIL_VERIFICATION_TOKENS, DSL.name("email_verification_tokens_user_id_fkey"), arrayOf(EmailVerificationTokens.EMAIL_VERIFICATION_TOKENS.USER_ID), rosemary_and_thyme.backend.jooqgenerated.auth.keys.USERS_PKEY, arrayOf(Users.USERS.ID), true, ForeignKeyRule.CASCADE, ForeignKeyRule.NO_ACTION)
 val SESSIONS__SESSIONS_USER_ID_FKEY: ForeignKey<SessionsRecord, UsersRecord> = Internal.createForeignKey(Sessions.SESSIONS, DSL.name("sessions_user_id_fkey"), arrayOf(Sessions.SESSIONS.USER_ID), rosemary_and_thyme.backend.jooqgenerated.auth.keys.USERS_PKEY, arrayOf(Users.USERS.ID), true, ForeignKeyRule.CASCADE, ForeignKeyRule.NO_ACTION)

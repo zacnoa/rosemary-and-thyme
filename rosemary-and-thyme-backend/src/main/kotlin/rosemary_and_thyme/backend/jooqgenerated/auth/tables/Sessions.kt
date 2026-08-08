@@ -34,7 +34,7 @@ import org.jooq.impl.SQLDataType
 import org.jooq.impl.TableImpl
 
 import rosemary_and_thyme.backend.jooqgenerated.auth.Auth
-import rosemary_and_thyme.backend.jooqgenerated.auth.indexes.IDX_SESSIONS_HASH
+import rosemary_and_thyme.backend.jooqgenerated.auth.indexes.SESSIONS_USER_ID_IDX
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.SESSIONS_HASH_KEY
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.SESSIONS_PKEY
 import rosemary_and_thyme.backend.jooqgenerated.auth.keys.SESSIONS__SESSIONS_USER_ID_FKEY
@@ -146,7 +146,7 @@ open class Sessions(
         override fun `as`(alias: Table<*>): SessionsPath = SessionsPath(alias.qualifiedName, this)
     }
     override fun getSchema(): Schema? = if (aliased()) null else Auth.AUTH
-    override fun getIndexes(): List<Index> = listOf(IDX_SESSIONS_HASH)
+    override fun getIndexes(): List<Index> = listOf(SESSIONS_USER_ID_IDX)
     override fun getPrimaryKey(): UniqueKey<SessionsRecord> = SESSIONS_PKEY
     override fun getUniqueKeys(): List<UniqueKey<SessionsRecord>> = listOf(SESSIONS_HASH_KEY)
     override fun getReferences(): List<ForeignKey<SessionsRecord, *>> = listOf(SESSIONS__SESSIONS_USER_ID_FKEY)

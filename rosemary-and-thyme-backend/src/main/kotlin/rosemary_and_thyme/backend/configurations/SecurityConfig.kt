@@ -11,11 +11,15 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
+import rosemary_and_thyme.backend.filters.RateLimitFilter
 import rosemary_and_thyme.backend.filters.SessionAuthFilter
 
 @Configuration
 @EnableWebSecurity
-class SecurityConfig(private val sessionFilter: SessionAuthFilter) {
+class SecurityConfig(
+    private val sessionFilter: SessionAuthFilter,
+    private val rateLimitFilter: RateLimitFilter
+) {
 
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
@@ -41,7 +45,9 @@ class SecurityConfig(private val sessionFilter: SessionAuthFilter) {
             .authorizeHttpRequests {
                 it.requestMatchers(
                     "/auth/login",
-                    "/auth/register"
+                    "/auth/register",
+                    "/auth/verify-email",
+                    "/auth/verify-email/resend"
                 ).permitAll()
                 it.requestMatchers(HttpMethod.GET, "/recipe/{id}").permitAll()
                 it.anyRequest().authenticated()
@@ -49,6 +55,10 @@ class SecurityConfig(private val sessionFilter: SessionAuthFilter) {
             .addFilterBefore(
                 sessionFilter,
                 UsernamePasswordAuthenticationFilter::class.java
+            )
+            .addFilterBefore(
+                rateLimitFilter,
+                SessionAuthFilter::class.java
             )
 
         return http.build()

@@ -27,10 +27,10 @@ class UserRepository(val dsl: DSLContext) {
                 .set(USERS.PASSWORD, password)
                 .set(USERS.USERNAME, userName)
                 .returning()
-                .fetchOne()!!
+                .fetchOne() ?: throw IllegalStateException("Failed to insert user")
         } catch (ex: DataAccessException) {
-            val sqlEx = ex.cause as SQLException
-            if (sqlEx.sqlState == "23505") {
+            val sqlEx = ex.cause as? SQLException
+            if (sqlEx?.sqlState == "23505") {
                 throw UserAlreadyExistsException("A user with that email already exists")
             }
             throw ex
@@ -42,5 +42,11 @@ class UserRepository(val dsl: DSLContext) {
             .where(USERS.ID.eq(userId))
             .fetchOne()
 
+    fun markEmailVerified(userId: UUID) {
+        dsl.update(USERS)
+            .set(USERS.EMAIL_VERIFIED, true)
+            .where(USERS.ID.eq(userId))
+            .execute()
+    }
 
 }

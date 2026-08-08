@@ -18,7 +18,7 @@ class SessionRepository(val dsl: DSLContext) {
             .set(SESSIONS.USER_ID, userId)
             .set(SESSIONS.SESSION_HASH, hashedToken)
             .returning()
-            .fetchOne()!!.sessionHash
+            .fetchOne()?.sessionHash ?: throw IllegalStateException("Failed to insert session")
 
     fun fetchSession(sessionHash: String ): SessionsRecord? =
         dsl.selectFrom(SESSIONS)
@@ -37,6 +37,7 @@ class SessionRepository(val dsl: DSLContext) {
         dsl.update(SESSIONS)
             .set(SESSIONS.REVOKED,true)
             .where(SESSIONS.ID.eq(sessionId))
+            .execute()
     }
 
 }

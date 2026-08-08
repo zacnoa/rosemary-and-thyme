@@ -12,7 +12,7 @@ import org.jooq.impl.DSL
 import org.jooq.impl.SchemaImpl
 
 import rosemary_and_thyme.backend.jooqgenerated.DefaultCatalog
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.RefreshTokens
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.EmailVerificationTokens
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Sessions
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Users
 
@@ -31,9 +31,9 @@ open class Auth : SchemaImpl(DSL.name("auth"), DefaultCatalog.DEFAULT_CATALOG, D
     }
 
     /**
-     * The table <code>auth.refresh_tokens</code>.
+     * The table <code>auth.email_verification_tokens</code>.
      */
-    val REFRESH_TOKENS: RefreshTokens get() = RefreshTokens.REFRESH_TOKENS
+    val EMAIL_VERIFICATION_TOKENS: EmailVerificationTokens get() = EmailVerificationTokens.EMAIL_VERIFICATION_TOKENS
 
     /**
      * The table <code>auth.sessions</code>.
@@ -48,7 +48,7 @@ open class Auth : SchemaImpl(DSL.name("auth"), DefaultCatalog.DEFAULT_CATALOG, D
     override fun getCatalog(): Catalog = DefaultCatalog.DEFAULT_CATALOG
 
     override fun getTables(): List<Table<*>> = listOf(
-        RefreshTokens.REFRESH_TOKENS,
+        EmailVerificationTokens.EMAIL_VERIFICATION_TOKENS,
         Sessions.SESSIONS,
         Users.USERS
     )

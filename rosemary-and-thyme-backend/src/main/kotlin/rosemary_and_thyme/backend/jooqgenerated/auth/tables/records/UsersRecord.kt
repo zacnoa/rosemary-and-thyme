@@ -34,6 +34,10 @@ open class UsersRecord private constructor() : UpdatableRecordImpl<UsersRecord>(
         set(value): Unit = set(3, value)
         get(): String? = get(3) as String?
 
+    open var emailVerified: Boolean?
+        set(value): Unit = set(4, value)
+        get(): Boolean? = get(4) as Boolean?
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -43,11 +47,12 @@ open class UsersRecord private constructor() : UpdatableRecordImpl<UsersRecord>(
     /**
      * Create a detached, initialised UsersRecord
      */
-    constructor(id: UUID? = null, password: String, username: String, email: String? = null): this() {
+    constructor(id: UUID? = null, password: String, username: String, email: String? = null, emailVerified: Boolean? = null): this() {
         this.id = id
         this.password = password
         this.username = username
         this.email = email
+        this.emailVerified = emailVerified
         resetTouchedOnNotNull()
     }
 }

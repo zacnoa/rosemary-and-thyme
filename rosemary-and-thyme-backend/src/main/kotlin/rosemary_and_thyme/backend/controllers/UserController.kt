@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
+import rosemary_and_thyme.backend.repositories.dbNotNull
 import rosemary_and_thyme.backend.services.recipes.RecipeService
 import java.util.UUID
 
@@ -16,7 +17,7 @@ class UserController(private val recipeService: RecipeService) {
 
     @GetMapping("/aboutme")
     fun aboutMe(@AuthenticationPrincipal user: UsersRecord): ResponseEntity<UserDTO> {
-        return ResponseEntity.ok().body(UserDTO(user.id!!, user.username, user.email!!))
+        return ResponseEntity.ok().body(UserDTO(user.id.dbNotNull("id"), user.username, user.email.dbNotNull("email")))
 
     }
 

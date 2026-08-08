@@ -106,8 +106,13 @@ class RecipeService(
                 img.url == null && imageFiles.containsKey(id)
             }
 
-            val allImages = recipeRepository.fetchAllImageIds(recipe.id)
-            val deletedIds = allImages - recipe.images.keys
+            // images the DB still has for this recipe that the client didn't send back -
+            // i.e. what the user actually removed. Their urls only exist in this
+            // "before" snapshot, never in the client's submitted `recipe.images` (which
+            // by definition no longer contains them), so that map must not be used to
+            // look them up.
+            val existingImages = recipeRepository.fetchAllImages(recipe.id)
+            val deletedImages = existingImages.filterKeys { it !in recipe.images }
 
             val uploadDeferred = async(Dispatchers.IO) {
                 newImages.map { (tempId, _) ->
@@ -121,9 +126,8 @@ class RecipeService(
             }
 
             val deleteDeferred = async(Dispatchers.IO) {
-                deletedIds.forEach { id ->
-                    val publicId = RecipeUtils.extractPublicId(recipe.images[id]?.url!!)
-                    cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap())
+                deletedImages.values.forEach { url ->
+                    cloudinary.uploader().destroy(RecipeUtils.extractPublicId(url), ObjectUtils.emptyMap())
                 }
             }
 

@@ -5,6 +5,7 @@ import rosemary_and_thyme.backend.exceptions.SessionException
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.repositories.auth.SessionRepository
 import rosemary_and_thyme.backend.repositories.auth.UserRepository
+import rosemary_and_thyme.backend.repositories.dbNotNull
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.OffsetDateTime
@@ -54,7 +55,11 @@ class SessionService(
         val session = sessionRepository.fetchSession(hashedToken)
             ?: throw SessionException("Session with this id does not exist")
 
-        if (session.expiresAt!!.isBefore(OffsetDateTime.now(ZoneOffset.UTC))) {
+        if (session.revoked == true) {
+            throw SessionException("Session has been revoked")
+        }
+
+        if (session.expiresAt.dbNotNull("expiresAt").isBefore(OffsetDateTime.now(ZoneOffset.UTC))) {
             throw SessionException("Session is expired")
         }
 
@@ -64,12 +69,17 @@ class SessionService(
         return user
     }
 
+    /**
+     * No-ops for a token that doesn't match any session (already logged out, expired
+     * and cleaned up, or just a stale/tampered cookie) - logging out twice should never
+     * be an error.
+     */
     fun revokeSession(sessionToken: String) {
-        val hashedToken=hashToken(sessionToken)
+        val hashedToken = hashToken(sessionToken)
 
-        val session=sessionRepository.fetchSession(hashedToken)
+        val session = sessionRepository.fetchSession(hashedToken) ?: return
 
-        sessionRepository.revokeSession(session!!.id!!)
+        sessionRepository.revokeSession(session.id.dbNotNull("id"))
     }
 
 

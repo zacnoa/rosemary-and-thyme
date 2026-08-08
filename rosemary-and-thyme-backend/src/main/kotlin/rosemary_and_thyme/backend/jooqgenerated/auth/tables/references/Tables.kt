@@ -5,16 +5,16 @@
 package rosemary_and_thyme.backend.jooqgenerated.auth.tables.references
 
 
-import rosemary_and_thyme.backend.jooqgenerated.auth.tables.RefreshTokens
+import rosemary_and_thyme.backend.jooqgenerated.auth.tables.EmailVerificationTokens
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Sessions
 import rosemary_and_thyme.backend.jooqgenerated.auth.tables.Users
 
 
 
 /**
- * The table <code>auth.refresh_tokens</code>.
+ * The table <code>auth.email_verification_tokens</code>.
  */
-val REFRESH_TOKENS: RefreshTokens = RefreshTokens.REFRESH_TOKENS
+val EMAIL_VERIFICATION_TOKENS: EmailVerificationTokens = EmailVerificationTokens.EMAIL_VERIFICATION_TOKENS
 
 /**
  * The table <code>auth.sessions</code>.

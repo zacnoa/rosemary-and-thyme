@@ -1,6 +1,7 @@
 package rosemary_and_thyme.backend.controllers
 
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseCookie
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.CookieValue
@@ -12,12 +13,13 @@ import org.springframework.web.bind.annotation.RestController
 import rosemary_and_thyme.backend.exceptions.SessionException
 import rosemary_and_thyme.backend.models.LoginRequest
 import rosemary_and_thyme.backend.models.RegisterRequest
+import rosemary_and_thyme.backend.models.ResendVerificationRequest
+import rosemary_and_thyme.backend.models.VerifyEmailRequest
 import rosemary_and_thyme.backend.services.auth.AuthService
 import java.time.Duration
 import java.util.UUID
 
 
-data class JwtResponse(val token: String)
 data class UserDTO(val id: UUID, val username:String, val email:String)
 
 @RestController
@@ -31,13 +33,33 @@ class AuthController(
     @PostMapping("/register")
     fun register(@RequestBody request: RegisterRequest): ResponseEntity<Unit> {
 
-        val sessionToken=authService.register(request)
-        val sessionCookie=createSessionCookie(sessionToken)
+        // account is created but stays unusable until the email is verified,
+        // so unlike login there is no session cookie to set here
+        authService.register(request)
+
+        return ResponseEntity.status(HttpStatus.CREATED).build()
+
+    }
+
+    @PostMapping("/verify-email")
+    fun verifyEmail(@RequestBody request: VerifyEmailRequest): ResponseEntity<Unit> {
+
+        val sessionToken = authService.verifyEmail(request.token)
+        val sessionCookie = createSessionCookie(sessionToken)
 
         return ResponseEntity.ok()
             .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
             .build()
+    }
 
+    @PostMapping("/verify-email/resend")
+    fun resendVerificationEmail(@RequestBody request: ResendVerificationRequest): ResponseEntity<Unit> {
+
+        // always 200 regardless of whether the email exists/is already verified -
+        // see EmailVerificationService.resend for why
+        authService.resendVerificationEmail(request.email)
+
+        return ResponseEntity.ok().build()
     }
 
 

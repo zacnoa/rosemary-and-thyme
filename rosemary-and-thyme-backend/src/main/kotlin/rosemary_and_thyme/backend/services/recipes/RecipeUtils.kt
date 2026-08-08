@@ -3,6 +3,7 @@ package rosemary_and_thyme.backend.services.recipes
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.IngredientsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.InstructionsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.RecipesRecord
+import rosemary_and_thyme.backend.repositories.dbNotNull
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
@@ -13,7 +14,7 @@ import kotlin.collections.get
  * Data Classes that mirror types on the frontend
  *
  * JOOQ will always add nullable to columns that have default values because of that
- * we use !! operator to declare not null property that is guaranteed by default DDL keyword
+ * we use the dbNotNull() extension to declare not-null properties that are guaranteed by default DDL keyword
  */
 data class RecipeImageDTO(
     val id: UUID,
@@ -85,13 +86,13 @@ object RecipeUtils {
         instructionImages.values.flatten().forEach { i -> imagesMap[i.first] = RecipeImageDTO(i.first, i.second) }
 
         return RecipeDTO(
-            id = recipe.id!!,
+            id = recipe.id.dbNotNull("id"),
             userId = recipe.userId,
             userName = recipe.userName,
-            createDate = recipe.createdDate!!,
+            createDate = recipe.createdDate.dbNotNull("createdDate"),
             name = recipe.name,
             description = recipe.description,
-            likes = recipe.likes!!,
+            likes = recipe.likes.dbNotNull("likes"),
             portions = recipe.portions,
             cookTime = recipe.cookTime,
             difficulty = recipe.difficulty,
@@ -102,8 +103,9 @@ object RecipeUtils {
              */
             ingredients = ingredients
                 .associate { i ->
-                    i.id!! to IngredientDTO(
-                        id = i.id!!,
+                    val id = i.id.dbNotNull("id")
+                    id to IngredientDTO(
+                        id = id,
                         name = i.name,
                         amount = i.amount,
                         measuringUnit = i.measuringUnit
@@ -114,8 +116,9 @@ object RecipeUtils {
              */
             instructions = instructions
                 .associate { inst ->
-                    inst.id!! to InstructionDTO(
-                        id = inst.id!!,
+                    val id = inst.id.dbNotNull("id")
+                    id to InstructionDTO(
+                        id = id,
                         text = inst.instruction,
                         images = instructionImages[inst.id]?.map { it.first } ?: emptyList()
                     )
