@@ -85,21 +85,34 @@ jooq {
                         key = "sort"
                         value = "semantic"
                     }
+                    // Without this, H2 (used internally by DDLDatabase to simulate the
+                    // DDL) upper-cases every unquoted identifier from schema.sql - not
+                    // just schema names (handled below), but TABLE and COLUMN names too.
+                    // That silently baked "SESSIONS"/"USERS"/etc. into the generated
+                    // code's rendered SQL, which then failed against Postgres's actual
+                    // lowercase tables (relation "app_auth.SESSIONS" does not exist).
+                    // "lower" makes it fold the other way, matching what Postgres does
+                    // with unquoted identifiers by default.
+                    property {
+                        key = "defaultNameCase"
+                        value = "lower"
+                    }
                 }
                 schemata {
                     schema {
-                        // H2 (used internally by DDLDatabase to simulate the DDL)
-                        // treats PUBLIC as its own built-in default schema name;
-                        // map it back to "public" so generated packages match
-                        // what's actually in Postgres.
-                        inputSchema = "PUBLIC"
-                        outputSchema = "public"
+                        // schema.sql spells out "public.<table>" explicitly (e.g.
+                        // "public.hero_images"), and with defaultNameCase = "lower"
+                        // that unquoted "public" is folded/quoted to lowercase too -
+                        // so the schema DDLDatabase reports is actually "public", not
+                        // H2's implicit uppercase "PUBLIC". No rename needed; this
+                        // entry only exists so "public" isn't excluded (schemata acts
+                        // as an allow-list once any schema is listed).
+                        inputSchema = "public"
                     }
                     schema {
-                        // Same case-folding reason as PUBLIC above - H2 uppercases
-                        // unquoted identifiers internally.
-                        inputSchema = "APP_AUTH"
-                        outputSchema = "app_auth"
+                        // Same reasoning as "public" above - app_auth is already
+                        // lowercase once parsed under defaultNameCase = "lower".
+                        inputSchema = "app_auth"
                     }
                 }
             }
