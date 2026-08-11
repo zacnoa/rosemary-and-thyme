@@ -1,6 +1,7 @@
 package rosemary_and_thyme.backend.controllers
 
 import jakarta.servlet.http.HttpServletRequest
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -19,6 +20,8 @@ import java.net.URI
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
+
+    private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 
     @ExceptionHandler(UserCredentialsException::class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
@@ -110,6 +113,10 @@ class GlobalExceptionHandler {
     @ExceptionHandler(Exception::class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     fun handleGeneric(e: Exception, request: HttpServletRequest): ProblemDetail {
+        // Without this, unhandled exceptions vanish - the client only sees the generic
+        // detail below, and nothing at all shows up in the Railway logs to debug from.
+        log.error("Unhandled exception on {} {}", request.method, request.requestURI, e)
+
         return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred")
             .apply {
                 title = "Internal Server Error"
