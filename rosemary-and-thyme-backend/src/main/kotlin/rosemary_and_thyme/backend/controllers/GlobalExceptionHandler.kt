@@ -1,7 +1,6 @@
 package rosemary_and_thyme.backend.controllers
 
 import jakarta.servlet.http.HttpServletRequest
-import org.jooq.exception.DataAccessException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -32,7 +31,7 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(UserAlreadyExistsException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    fun handleDataAccess(e: DataAccessException, request: HttpServletRequest): ProblemDetail =
+    fun handleDataAccess(e: UserAlreadyExistsException, request: HttpServletRequest): ProblemDetail =
         ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.message)
             .apply {
                 title = "Conflict on submitted Email"
