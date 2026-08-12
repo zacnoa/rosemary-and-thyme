@@ -13,11 +13,11 @@ import rosemary_and_thyme.backend.jooqgenerated.public.tables.Instructions.Compa
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.Recipes.Companion.RECIPES
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.*
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.references.IMAGES
+import rosemary_and_thyme.backend.models.recipes.IngredientDTO
+import rosemary_and_thyme.backend.models.recipes.InstructionDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeImageDTO
 import rosemary_and_thyme.backend.repositories.dbNotNull
-import rosemary_and_thyme.backend.services.recipes.IngredientDTO
-import rosemary_and_thyme.backend.services.recipes.InstructionDTO
-import rosemary_and_thyme.backend.services.recipes.RecipeDTO
-import rosemary_and_thyme.backend.services.recipes.RecipeImageDTO
 import java.util.*
 import kotlin.collections.partition
 
@@ -40,8 +40,25 @@ class RecipeRepository(val dsl: DSLContext) {
      * appear in) against the set of ids currently in the DB, and pairs each surviving
      * item with the index it should be stored at.
      *
+     * The client always sends its full current view of a list (ingredients,
+     * instructions, hero images, ...), never an incremental diff, so this is what
+     * turns "here is everything that should exist now" into concrete SQL operations:
+     * an id in both [items] and [existingIds] is an update, an id in [items] but not
+     * [existingIds] is an insert (or, in practice, an item the client generated a fresh
+     * client-side id for), and an id in [existingIds] but no longer in [items] is a
+     * delete. [order] supplies the position (its index in that list) each surviving
+     * item should be persisted at, since display order matters for all of these lists.
+     *
      * Shared by every save*() below - they only differ in which jOOQ table they then
      * write the result to.
+     *
+     * @param existingIds ids currently in the DB for this parent (e.g. this recipe's ingredient ids)
+     * @param items the client's full submitted set of items
+     * @param idOf extracts an item's id, since [T] isn't assumed to expose one directly
+     * @param order the client's submitted display order (a list of ids); an item's
+     * index in this list becomes its persisted `index` column
+     * @return a [Triple] of (items to update with their target index, items to insert
+     * with their target index, ids to delete)
      */
     private fun <T> diffByOrder(
         existingIds: Set<UUID>,
@@ -59,7 +76,17 @@ class RecipeRepository(val dsl: DSLContext) {
         )
     }
 
-    fun saveRecipeBase(dto: RecipeDTO, user: UsersRecord): UUID {
+    /**
+     * Upserts a recipe's base row (everything except ingredients/instructions/images,
+     * which are saved separately - see [syncIngredients], [syncInstructions], [syncHeroImages]).
+     *
+     * @param dto the recipe's desired state
+     * @param user the authenticated caller; only used as the owner on insert - never
+     * trusted from [dto] (see the inline comment below)
+     * @return the recipe's id (the existing id if this was an update, a new
+     * DB-generated id if this was an insert)
+     */
+    fun upsertRecipeBase(dto: RecipeDTO, user: UsersRecord): UUID {
         /**
          * check if recipe with given id exists
          */
@@ -107,6 +134,12 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
+    /**
+     * @param userId the owner to list recipes for
+     * @return up to 100 of the user's recipes as (id, name) pairs. Unlike
+     * [selectRecipesWithFilters], this has no name filter and sorts by nothing in
+     * particular (DB/index order) - it is not currently called from any controller.
+     */
     fun selectAllRecipes(userId: UUID): List<Pair<UUID, String>> =
 
         dsl.select(RECIPES.ID,RECIPES.NAME).from(RECIPES)
@@ -115,7 +148,23 @@ class RecipeRepository(val dsl: DSLContext) {
             .fetch{record -> Pair(record[RECIPES.ID].dbNotNull("id"), record[RECIPES.NAME].dbNotNull("name"))}
 
 
-    fun saveIngredients(
+    /**
+     * Reconciles a recipe's ingredients against the client's submitted state (see
+     * [diffByOrder]) and applies the update/insert/delete in as few round trips as
+     * `jOOQ` allows.
+     *
+     * Batch execution: [dsl.batch] sends every update (or every insert) as one
+     * multi-statement/prepared-batch round trip to Postgres instead of one round trip
+     * per row - for a recipe with, say, 15 ingredients being reordered, that is 1
+     * network round trip instead of 15. Individual per-row `.execute()` calls each pay
+     * the full network latency cost separately, so for anything but a single-row change
+     * batching is a large, easy win with no behavior difference.
+     *
+     * @param recipeId the recipe the ingredients belong to
+     * @param ingredients the client's full submitted set of ingredients, keyed by id
+     * @param order the client's submitted display order for [ingredients]
+     */
+    fun syncIngredients(
         recipeId: UUID,
         ingredients: Map<UUID, IngredientDTO>,
         order: List<UUID>
@@ -179,7 +228,21 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    fun saveInstructions(
+    /**
+     * Reconciles a recipe's instructions against the client's submitted state (see
+     * [diffByOrder] and the batching note on [syncIngredients], which applies here too
+     * for the update/insert steps). Unlike ingredients, instructions also own images
+     * (see [syncInstructionImages]), so new instructions are inserted one at a time
+     * (not batched) - each insert needs its DB-generated id back immediately to save
+     * that instruction's images against it.
+     *
+     * @param recipeId the recipe the instructions belong to
+     * @param instructions the client's full submitted set of instruction steps, keyed by id
+     * @param order the client's submitted display order for [instructions]
+     * @param images every image in the recipe (hero + instruction), keyed by id - passed
+     * through to [syncInstructionImages] to resolve each instruction's image ids to their DTOs
+     */
+    fun syncInstructions(
         recipeId: UUID,
         instructions: Map<UUID, InstructionDTO>,
         order: List<UUID>,
@@ -187,7 +250,7 @@ class RecipeRepository(val dsl: DSLContext) {
     ) {
 
         /**
-         * fetch existing id for cheking
+         * fetch existing id for checking
          */
         val existingIds = dsl.select(INSTRUCTIONS.ID)
             .from(INSTRUCTIONS)
@@ -227,7 +290,7 @@ class RecipeRepository(val dsl: DSLContext) {
                     .fetchOne()
                     ?.get(INSTRUCTIONS.ID) ?: throw IllegalStateException("Failed to insert instruction")
 
-                saveInstructionImages(newId, inst.images, images)
+                syncInstructionImages(newId, inst.images, images)
             }
         }
 
@@ -235,7 +298,7 @@ class RecipeRepository(val dsl: DSLContext) {
          * update image for existing images
          */
         toUpdate.forEach { (inst, _) ->
-            saveInstructionImages(inst.id, inst.images, images)
+            syncInstructionImages(inst.id, inst.images, images)
         }
 
         /**
@@ -249,18 +312,29 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    fun saveHeroImages(
+    /**
+     * Reconciles a recipe's hero images against the client's submitted state (see
+     * [diffByOrder]). Hero images are split across two tables - `images` (the url) and
+     * `hero_images` (the recipe/index join row) - so every branch below has to touch
+     * both, unlike the single-table ingredients/instructions cases.
+     *
+     * @param recipeId the recipe the hero images belong to
+     * @param images every image in the recipe (hero + instruction) keyed by id; only
+     * the ids present in [order] are treated as hero images
+     * @param order the client's submitted display order of hero image ids
+     */
+    fun syncHeroImages(
         recipeId: UUID,
         images: Map<UUID, RecipeImageDTO>,
         order: List<UUID>
     ) {
-        val existingIds = fetchHeroImageIds(recipeId)
+        val existingIds = selectHeroImageIds(recipeId)
         val heroImages = order.mapNotNull { images[it] }
         val (toUpdate, toInsert, toDelete) = diffByOrder(existingIds, heroImages, { it.id }, order)
 
-        // UPDATE - dvije tablice
+        // UPDATE - spans two tables
         if (toUpdate.isNotEmpty()) {
-            // Update index u hero_images
+            // update index in hero_images
             dsl.batch(
                 toUpdate.map { (img, index) ->
                     dsl.update(HERO_IMAGES)
@@ -269,7 +343,7 @@ class RecipeRepository(val dsl: DSLContext) {
                         .and(HERO_IMAGES.RECIPE_ID.eq(recipeId))
                 }
             ).execute()
-            // Update url u images
+            // update url in images
             dsl.batch(
                 toUpdate.map { (img, _) ->
                     dsl.update(IMAGES)
@@ -279,15 +353,15 @@ class RecipeRepository(val dsl: DSLContext) {
             ).execute()
         }
 
-        // INSERT - dvije tablice
+        // INSERT - spans two tables
         if (toInsert.isNotEmpty()) {
             toInsert.forEach { (img, index) ->
-                // 1. Insert u images, dobijes novi image_id
+                // 1. insert into images, get the new image_id back
                 val imageId = dsl.insertInto(IMAGES)
                     .set(IMAGES.URL, img.url)
                     .returningResult(IMAGES.ID)
                     .fetchOne()?.value1() ?: throw IllegalStateException("Failed to insert image")
-                // 2. Insert u hero_images s tim image_id
+                // 2. insert into hero_images with that image_id
                 dsl.insertInto(HERO_IMAGES)
                     .set(HERO_IMAGES.IMAGE_ID, imageId)
                     .set(HERO_IMAGES.RECIPE_ID, recipeId)
@@ -296,7 +370,7 @@ class RecipeRepository(val dsl: DSLContext) {
             }
         }
 
-        // DELETE - CASCADE ce obrisati hero_images automatski
+        // DELETE - CASCADE deletes the matching hero_images row automatically
         if (toDelete.isNotEmpty()) {
             dsl.deleteFrom(IMAGES)
                 .where(IMAGES.ID.`in`(toDelete))
@@ -304,21 +378,34 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    fun saveInstructionImages(
+    /**
+     * Reconciles a single instruction step's images against the client's submitted
+     * state (see [diffByOrder]). Same two-table shape as [syncHeroImages]
+     * (`images` + `instruction_images`), just scoped to one instruction instead of the
+     * whole recipe.
+     *
+     * @param instructionId the instruction step the images belong to
+     * @param imageIds the client's submitted display order of this step's image ids
+     * (doubles as both the "desired items" and the "order" argument to [diffByOrder],
+     * since an instruction's images have no separate ordering concept)
+     * @param images every image in the recipe (hero + instruction), keyed by id -
+     * looked up here to resolve [imageIds] to their url/DTO
+     */
+    fun syncInstructionImages(
         instructionId: UUID,
         imageIds: List<UUID>,
         images: Map<UUID, RecipeImageDTO>
     ) {
         /**
-         * Here we cannot reuse fetchInstructionImages because the type Map<UUID, List<String>> loses the id information of individual images
+         * Here we cannot reuse selectInstructionImages because the type Map<UUID, List<String>> loses the id information of individual images
          */
-        val existingIds = fetchInstructionImageIds(instructionId)
+        val existingIds = selectInstructionImageIds(instructionId)
         val instructionImages = imageIds.mapNotNull { images[it] }
         val (toUpdate, toInsert, toDelete) = diffByOrder(existingIds, instructionImages, { it.id }, imageIds)
 
         // UPDATE
         if (toUpdate.isNotEmpty()) {
-            // Update index u instruction_images
+            // update index in instruction_images
             dsl.batch(
                 toUpdate.map { (img, index) ->
                     dsl.update(INSTRUCTION_IMAGES)
@@ -327,7 +414,7 @@ class RecipeRepository(val dsl: DSLContext) {
                         .and(INSTRUCTION_IMAGES.INSTRUCTION_ID.eq(instructionId))
                 }
             ).execute()
-            // Update url u images
+            // update url in images
             dsl.batch(
                 toUpdate.map { (img, _) ->
                     dsl.update(IMAGES)
@@ -340,12 +427,12 @@ class RecipeRepository(val dsl: DSLContext) {
         // INSERT
         if (toInsert.isNotEmpty()) {
             toInsert.forEach { (img, index) ->
-                // 1. Insert u images
+                // 1. insert into images
                 val imageId = dsl.insertInto(IMAGES)
                     .set(IMAGES.URL, img.url)
                     .returningResult(IMAGES.ID)
                     .fetchOne()?.value1() ?: throw IllegalStateException("Failed to insert image")
-                // 2. Insert u instruction_images s tim image_id
+                // 2. insert into instruction_images with that image_id
                 dsl.insertInto(INSTRUCTION_IMAGES)
                     .set(INSTRUCTION_IMAGES.IMAGE_ID, imageId)
                     .set(INSTRUCTION_IMAGES.INSTRUCTION_ID, instructionId)
@@ -354,7 +441,7 @@ class RecipeRepository(val dsl: DSLContext) {
             }
         }
 
-        // DELETE - CASCADE briše instruction_images automatski
+        // DELETE - CASCADE deletes the matching instruction_images row automatically
         if (toDelete.isNotEmpty()) {
             dsl.deleteFrom(IMAGES)
                 .where(IMAGES.ID.`in`(toDelete))
@@ -363,26 +450,30 @@ class RecipeRepository(val dsl: DSLContext) {
     }
 
     /**
-     * Queries for fetching  recipe by id
+     * @param recipeId the recipe's id
+     * @return the recipe's base row, or `null` if no recipe exists with this id
      */
-    fun fetchRecipeBase(recipeId: UUID): RecipesRecord? =
+    fun selectRecipeBase(recipeId: UUID): RecipesRecord? =
         dsl.selectFrom(RECIPES)
             .where(RECIPES.ID.eq(recipeId))
             .fetchOneInto(RecipesRecord::class.java)
 
-    fun fetchIngredients(recipeId: UUID): List<IngredientsRecord> =
+    /** @return the recipe's ingredients, in display order */
+    fun selectIngredients(recipeId: UUID): List<IngredientsRecord> =
         dsl.selectFrom(INGREDIENTS)
             .where(INGREDIENTS.RECIPE_ID.eq(recipeId))
             .orderBy(INGREDIENTS.INDEX)
             .fetchInto(IngredientsRecord::class.java)
 
-    fun fetchInstructions(recipeId: UUID): List<InstructionsRecord> =
+    /** @return the recipe's instruction steps, in display order */
+    fun selectInstructions(recipeId: UUID): List<InstructionsRecord> =
         dsl.selectFrom(INSTRUCTIONS)
             .where(INSTRUCTIONS.RECIPE_ID.eq(recipeId))
             .orderBy(INSTRUCTIONS.INDEX)
             .fetchInto(InstructionsRecord::class.java)
 
-    fun fetchHeroImages(recipeId: UUID): Map<UUID, String> =
+    /** @return the recipe's hero images as imageId -> url, in display order */
+    fun selectHeroImages(recipeId: UUID): Map<UUID, String> =
         dsl.select(HERO_IMAGES.IMAGE_ID, IMAGES.URL)
             .from(HERO_IMAGES)
             .join(IMAGES)
@@ -392,7 +483,13 @@ class RecipeRepository(val dsl: DSLContext) {
             .fetch()
             .associate { it[HERO_IMAGES.IMAGE_ID].dbNotNull("image_id") to it[IMAGES.URL].dbNotNull("url") }
 
-    fun fetchInstructionImages(instructionIds: List<UUID>): Map<UUID, List<Pair<UUID, String>>> =
+    /**
+     * @param instructionIds instruction ids to fetch images for, e.g. every
+     * instruction of one recipe (see [rosemary_and_thyme.backend.services.recipes.RecipeService.findRecipeById])
+     * @return images grouped by their owning instruction id, each as (imageId, url)
+     * pairs in display order
+     */
+    fun selectInstructionImages(instructionIds: List<UUID>): Map<UUID, List<Pair<UUID, String>>> =
         dsl.select(INSTRUCTION_IMAGES.INSTRUCTION_ID, INSTRUCTION_IMAGES.IMAGE_ID, IMAGES.URL)
             .from(INSTRUCTION_IMAGES)
             .join(IMAGES).on(INSTRUCTION_IMAGES.IMAGE_ID.eq(IMAGES.ID))
@@ -410,8 +507,11 @@ class RecipeRepository(val dsl: DSLContext) {
      * since the client only ever sends the images it wants to *keep*.
      *
      * May cause problems with different combination of columns
+     *
+     * @param recipeId the recipe to fetch every image for
+     * @return recipe's current images, keyed by id, as a "before" snapshot for [rosemary_and_thyme.backend.services.recipes.RecipeService.saveRecipe]
      */
-    fun fetchAllImages(recipeId: UUID): Map<UUID, String> {
+    fun selectAllImagesForRecipe(recipeId: UUID): Map<UUID, String> {
         val heroImage = dsl.select(HERO_IMAGES.IMAGE_ID, IMAGES.URL)
             .from(HERO_IMAGES)
             .join(IMAGES)
@@ -429,7 +529,8 @@ class RecipeRepository(val dsl: DSLContext) {
             .associate { it[HERO_IMAGES.IMAGE_ID].dbNotNull("image_id") to it[IMAGES.URL].dbNotNull("url") }
     }
 
-    fun fetchHeroImageIds(recipeId: UUID): Set<UUID> =
+    /** @return ids of the recipe's current hero images, unordered */
+    fun selectHeroImageIds(recipeId: UUID): Set<UUID> =
         dsl.select(HERO_IMAGES.IMAGE_ID)
             .from(HERO_IMAGES)
             .where(HERO_IMAGES.RECIPE_ID.eq(recipeId))
@@ -437,7 +538,8 @@ class RecipeRepository(val dsl: DSLContext) {
             .filterNotNull()
             .toSet()
 
-    fun fetchInstructionImageIds(instructionId: UUID): Set<UUID> =
+    /** @return ids of the instruction step's current images, unordered */
+    fun selectInstructionImageIds(instructionId: UUID): Set<UUID> =
         dsl.select(INSTRUCTION_IMAGES.IMAGE_ID)
             .from(INSTRUCTION_IMAGES)
             .where(INSTRUCTION_IMAGES.INSTRUCTION_ID.eq(instructionId))
@@ -445,9 +547,25 @@ class RecipeRepository(val dsl: DSLContext) {
             .filterNotNull()
             .toSet()
 
+    /**
+     * Postgres `pg_trgm` similarity score between a recipe's name and [term], used to
+     * rank fuzzy search results by relevance (see [selectRecipesWithFilters]). Backed
+     * by the `recipes_name_trgm_idx` GIN index (db/indexes.sql) so this doesn't require
+     * a sequential scan.
+     */
     private fun nameSimilarity(term: String) =
         DSL.function("similarity", SQLDataType.DOUBLE, RECIPES.NAME, DSL.value(term))
 
+    /**
+     * Fuzzy-searches recipes by name and/or owner.
+     *
+     * @param q optional name filter, matched with Postgres's trigram `%` similarity
+     * operator (via `pg_trgm`) rather than an exact/prefix match, so typos and partial
+     * words still find results; when present, results are ranked by [nameSimilarity] descending
+     * @param userId optional owner filter
+     * @return up to 100 matching recipes as (id, name) pairs, sorted by relevance if
+     * [q] was given, alphabetically otherwise
+     */
     fun selectRecipesWithFilters(q: String? = null, userId: UUID? = null): List<Pair<UUID, String>> {
         val conditions = mutableListOf<Condition>()
 

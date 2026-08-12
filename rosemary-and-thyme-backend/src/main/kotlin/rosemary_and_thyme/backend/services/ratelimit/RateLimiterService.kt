@@ -20,6 +20,20 @@ class RateLimiterService {
 
     private val buckets = ConcurrentHashMap<String, Bucket>()
 
+    /**
+     * Attempts to consume 1 token from the bucket identified by `scope:key`, creating
+     * that bucket (with [bandwidths] as its limits) if this is the first call for it.
+     *
+     * @param scope a namespace for the limit, e.g. "login" or "resend" - keeps
+     * unrelated limits (login attempts vs. resend requests) from sharing a bucket even
+     * if [key] is the same value (e.g. the same email) for both
+     * @param key the identity being limited within [scope], e.g. an email or IP address
+     * @param bandwidths one or more limits to enforce together (e.g. 1/minute AND
+     * 5/day) - only used when the bucket is first created; ignored on later calls for
+     * the same `scope:key`
+     * @return `true` if a token was available and consumed (request allowed), `false`
+     * if the bucket was empty (request should be rejected, typically as 429)
+     */
     fun tryConsume(scope: String, key: String, vararg bandwidths: Bandwidth): Boolean {
         val bucket = buckets.computeIfAbsent("$scope:$key") {
             val builder = Bucket.builder()

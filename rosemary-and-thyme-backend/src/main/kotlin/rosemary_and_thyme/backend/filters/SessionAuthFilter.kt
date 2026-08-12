@@ -12,6 +12,17 @@ import org.springframework.web.filter.OncePerRequestFilter
 import rosemary_and_thyme.backend.exceptions.SessionException
 import rosemary_and_thyme.backend.services.auth.AuthService
 
+/**
+ * Authenticates every request from its `session_cookie` cookie, ahead of Spring
+ * Security's own authorization checks. Registered in
+ * [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain] as the
+ * filter before [org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter] -
+ * this is the only auth mechanism the app uses.
+ *
+ * On success, the resolved [rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord]
+ * becomes the request's principal, which is how controllers pick it up via
+ * `@AuthenticationPrincipal` (see [rosemary_and_thyme.backend.controllers.RecipeController.saveRecipe]).
+ */
 @Component
 class SessionAuthFilter(
     private val authService: AuthService
@@ -31,16 +42,16 @@ class SessionAuthFilter(
                 val user = authService.validateSession(sessionToken)
 
                 val authentication = UsernamePasswordAuthenticationToken(
-                    user,                                   // principal - možeš staviti cijeli UsersRecord ili custom UserDetails
-                    null,                                    // credentials - nisu potrebni nakon autentikacije
-                    listOf(SimpleGrantedAuthority("ROLE_USER")) // authorities - prilagodi ako imaš role sustav
+                    user,                                   // principal - the full UsersRecord, so controllers can read it back via @AuthenticationPrincipal
+                    null,                                    // credentials - not needed once already authenticated
+                    listOf(SimpleGrantedAuthority("ROLE_USER")) // authorities - single flat role; adjust if a real role system is added later
                 )
                 authentication.details = WebAuthenticationDetailsSource().buildDetails(request)
 
                 SecurityContextHolder.getContext().authentication = authentication
             } catch (ex: SessionException) {
-                // Nevažeći/istekao token - samo ne postavljaj authentication
-                // Ne bacaj exception ovdje, pusti da authorizeHttpRequests odluči (401/403)
+                // Invalid/expired token - just don't set an authentication.
+                // Don't throw here; let authorizeHttpRequests decide the outcome (401/403).
                 SecurityContextHolder.clearContext()
             }
         }

@@ -8,6 +8,10 @@ package rosemary_and_thyme.backend.repositories
  *
  * This documents that invariant at the call site with a clear failure message
  * instead of a bare `!!`, should it ever turn out to be wrong.
+ *
+ * @param column the column's name, used only to make the failure message actionable
+ * @return this value, non-null
+ * @throws IllegalStateException if this value is actually `null` (the DB invariant was violated)
  */
 fun <T : Any> T?.dbNotNull(column: String): T =
     this ?: throw IllegalStateException("Expected column '$column' to be non-null (DB invariant violated)")

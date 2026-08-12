@@ -3,62 +3,29 @@ package rosemary_and_thyme.backend.services.recipes
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.IngredientsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.InstructionsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.RecipesRecord
+import rosemary_and_thyme.backend.models.recipes.IngredientDTO
+import rosemary_and_thyme.backend.models.recipes.InstructionDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeImageDTO
 import rosemary_and_thyme.backend.repositories.dbNotNull
-import java.math.BigDecimal
-import java.time.LocalDate
 import java.util.UUID
-import kotlin.collections.get
-
 
 /**
- * Data Classes that mirror types on the frontend
- *
- * JOOQ will always add nullable to columns that have default values because of that
- * we use the dbNotNull() extension to declare not-null properties that are guaranteed by default DDL keyword
+ * Assembly helpers for turning the several jOOQ records a recipe is split across
+ * (see [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository]) into the
+ * single [RecipeDTO] shape the frontend expects, and back.
  */
-data class RecipeImageDTO(
-    val id: UUID,
-    val url: String?
-)
-
-data class IngredientDTO(
-    val id: UUID,
-    val name: String,
-    val amount: BigDecimal,
-    val measuringUnit: String
-)
-
-data class InstructionDTO(
-    val id: UUID,
-    val text: String,
-    val images: List<UUID>
-)
-
-data class RecipeDTO(
-    val id: UUID,
-    val userId: UUID,
-    val userName: String,
-    val createDate: LocalDate,
-    val name: String,
-    val description: String,
-    val likes: Long,
-    val portions: Int,
-    val cookTime: String,
-    val difficulty: Int,
-    val sideNotes: String?,
-    val images: Map<UUID, RecipeImageDTO>,
-    val ingredients: Map<UUID, IngredientDTO>,
-    val instructions: Map<UUID, InstructionDTO>,
-    val ingredientsOrder: List<UUID>,
-    val instructionsOrder: List<UUID>,
-    val heroImagesOrder: List<UUID>
-)
-
-
-
 object RecipeUtils {
 
-
+    /**
+     * Extracts the Cloudinary public id embedded in a Cloudinary delivery URL, e.g.
+     * `.../upload/v1699999999/Home/Recipes/abc123.jpg` -> `Home/Recipes/abc123`.
+     * Needed because Cloudinary's destroy (delete) API takes the public id, not the URL -
+     * see the upload/delete calls in [RecipeService.saveRecipe].
+     *
+     * @param url a Cloudinary secure delivery URL
+     * @return the public id to pass to `cloudinary.uploader().destroy(...)`
+     */
     fun extractPublicId(url: String): String =
         url.substringAfter("/upload/")
             .substringAfter("/")
@@ -66,14 +33,25 @@ object RecipeUtils {
 
 
     /**
-     * util for building RecipeDTO from a database rows
+     * Builds the frontend-facing [RecipeDTO] out of the separate row sets a recipe is
+     * stored across. Called after [RecipeService.findRecipeById] fetches those row sets
+     * in parallel, so this itself runs synchronously once all of them are in hand.
+     *
+     * @param recipe the recipe's base row (name, description, portions, ...)
+     * @param ingredients the recipe's ingredient rows
+     * @param instructions the recipe's instruction step rows
+     * @param instructionImages images per instruction id, as (imageId, url) pairs
+     * @param heroImages hero images as imageId -> url. TODO: narrow this to just the
+     * ordered list of image ids the caller actually needs (see the inline TODO in
+     * [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.selectHeroImages] call sites).
+     * @return the assembled [RecipeDTO], ready to serialize back to the client
      */
     fun buildRecipeDTO(
         recipe: RecipesRecord,
         ingredients: List<IngredientsRecord>,
         instructions: List<InstructionsRecord>,
         instructionImages: Map<UUID, List<Pair<UUID, String>>>,
-        //Change to recieve only List<UUID> representing those images
+        //Change to receive only List<UUID> representing those images
         heroImages: Map<UUID, String>
     ): RecipeDTO {
 
