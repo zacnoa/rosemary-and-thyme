@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.beans.factory.annotation.Value
 import rosemary_and_thyme.backend.exceptions.SessionException
 import rosemary_and_thyme.backend.models.LoginRequest
 import rosemary_and_thyme.backend.models.RegisterRequest
@@ -25,7 +26,8 @@ data class UserDTO(val id: UUID, val username:String, val email:String)
 @RestController
 @RequestMapping("/auth")
 class AuthController(
-    private val authService: AuthService
+    private val authService: AuthService,
+    @Value($$"${app.cookie-domain}") private val cookieDomain: String
 ) {
 
 
@@ -96,14 +98,14 @@ class AuthController(
             .build()
     }
 
-    //TODO: dont forget to set secure to TRUE
     private fun createSessionCookie(sessionToken: String): ResponseCookie =
         ResponseCookie.from(
             "session_cookie",
             sessionToken
         )
             .httpOnly(true)
-            .secure(false)
+            .secure(true)
+            .domain(cookieDomain)
             .path("/")
             .sameSite("Strict")
             .maxAge(Duration.ofDays(30))
@@ -115,7 +117,8 @@ class AuthController(
             ""
         )
             .httpOnly(true)
-            .secure(false)
+            .secure(true)
+            .domain(cookieDomain)
             .path("/")
             .sameSite("Strict")
             .maxAge(Duration.ZERO)

@@ -20,6 +20,9 @@ resend:
 app:
   # used to build the verification link sent in the email
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  # domain the session cookie is scoped to, so it's shared between api.<domain> and <domain>;
+  # defaults to localhost so cookies still work for local dev
+  cookie-domain: ${COOKIE_DOMAIN:localhost}
 
 
 
