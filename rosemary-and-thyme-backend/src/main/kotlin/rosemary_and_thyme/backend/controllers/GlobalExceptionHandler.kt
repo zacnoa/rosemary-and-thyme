@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import rosemary_and_thyme.backend.exceptions.EmailNotVerifiedException
 import rosemary_and_thyme.backend.exceptions.ForbiddenException
 import rosemary_and_thyme.backend.exceptions.InvalidTokenException
+import rosemary_and_thyme.backend.exceptions.RecipeValidationException
 import rosemary_and_thyme.backend.exceptions.SessionException
 import rosemary_and_thyme.backend.exceptions.TooManyRequestsException
 import rosemary_and_thyme.backend.exceptions.UserAlreadyExistsException
@@ -117,6 +118,24 @@ class GlobalExceptionHandler {
         ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.message)
             .apply {
                 title = "Too many requests"
+                instance = URI.create(request.requestURI)
+            }
+
+    /**
+     * A submitted recipe violates a save limit - too many ingredients/steps, or the
+     * description/title too long (see [rosemary_and_thyme.backend.services.recipes.RecipeValidation]).
+     * The server-side twin of the frontend's own pre-save checks: this is what
+     * actually stops an over-limit recipe from being persisted, since the frontend's
+     * check is bypassable by calling this API directly.
+     *
+     * @return 400 problem-detail, `detail` set to the first violated limit's message
+     */
+    @ExceptionHandler(RecipeValidationException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun handleRecipeValidation(e: RecipeValidationException, request: HttpServletRequest): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.message)
+            .apply {
+                title = "Invalid recipe"
                 instance = URI.create(request.requestURI)
             }
 

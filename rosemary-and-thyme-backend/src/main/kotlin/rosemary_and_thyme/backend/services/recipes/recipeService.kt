@@ -107,6 +107,14 @@ class RecipeService(
      * Creates or updates a recipe together with its image files, keeping Cloudinary and
      * the database consistent with each other.
      *
+     * Validation: [RecipeValidation.validate] runs first, before even the ownership
+     * check below - it's a pure check on [recipe] itself (too many ingredients/steps,
+     * description/title too long), so it can reject a bad submission without a single
+     * DB query. See RecipeValidation's KDoc for why this exists in the first place:
+     * it's the server-side twin of the frontend's own pre-save checks, and the one
+     * that actually matters, since the frontend's is bypassable by calling this
+     * endpoint directly.
+     *
      * Ownership check: for an existing recipe, the authenticated [user] must be its
      * owner - this is the only authorization check in the save path, so it runs before
      * any upload/DB work starts.
@@ -139,6 +147,7 @@ class RecipeService(
      * @param user the authenticated caller
      * @return the saved recipe, re-fetched via [findRecipeById] so the response
      * reflects the final DB/Cloudinary state (real ids, uploaded urls, etc.)
+     * @throws rosemary_and_thyme.backend.exceptions.RecipeValidationException if [recipe] violates a [RecipeValidation] limit
      * @throws ForbiddenException if [user] is not the owner of an existing recipe
      */
     fun saveRecipe(
@@ -146,6 +155,8 @@ class RecipeService(
         imageFiles: Map<UUID, MultipartFile>,
         user: UsersRecord
     ): RecipeDTO = runBlocking {
+
+        RecipeValidation.validate(recipe)
 
         val recipeBase = recipeRepository.selectRecipeBase(recipe.id)
 
