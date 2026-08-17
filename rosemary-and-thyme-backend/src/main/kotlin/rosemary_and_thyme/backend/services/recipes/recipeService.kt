@@ -17,7 +17,9 @@ import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRec
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.IngredientsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.InstructionsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.RecipesRecord
+import rosemary_and_thyme.backend.models.recipes.LikeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
+import rosemary_and_thyme.backend.repositories.dbNotNull
 import rosemary_and_thyme.backend.repositories.recipes.RecipeRepository
 import java.util.NoSuchElementException
 import java.util.UUID
@@ -64,10 +66,14 @@ class RecipeService(
      * fifth concurrent branch.
      *
      * @param id the recipe's id
+     * @param currentUserId the requesting caller's id, or `null` for an anonymous
+     * viewer - used only to resolve [RecipeDTO.liked]; when `null`, that lookup is
+     * skipped entirely (an anonymous caller can never have liked anything) rather
+     * than firing a query that would just resolve to `false`
      * @return the assembled [RecipeDTO]
      * @throws NoSuchElementException if no recipe exists with this id
      */
-    fun findRecipeById(id: UUID): RecipeDTO = runBlocking {
+    fun findRecipeById(id: UUID, currentUserId: UUID? = null): RecipeDTO = runBlocking {
 
         val recipeDeferred: Deferred<RecipesRecord?> = async(Dispatchers.IO) { recipeRepository.selectRecipeBase(id) }
         val ingredientsDeferred: Deferred<List<IngredientsRecord>> =
@@ -76,6 +82,9 @@ class RecipeService(
             async(Dispatchers.IO) { recipeRepository.selectInstructions(id) }
         val heroImagesDeferred: Deferred<Map<UUID, String>> =
             async(Dispatchers.IO) { recipeRepository.selectHeroImages(id) }
+        val likedDeferred: Deferred<Boolean>? = currentUserId?.let {
+            async(Dispatchers.IO) { recipeRepository.hasUserLikedRecipe(id, it) }
+        }
 
         /**
          * Waits for the async calls
@@ -87,6 +96,7 @@ class RecipeService(
         val ingredients = ingredientsDeferred.await()
         val instructions = instructionsDeferred.await()
         val heroImages = heroImagesDeferred.await()
+        val liked = likedDeferred?.await() ?: false
 
         /**
          * We selectInstructionImages last because it needs to have access to instructionIds
@@ -98,9 +108,64 @@ class RecipeService(
             ingredients = ingredients,
             instructions = instructions,
             heroImages = heroImages,
-            instructionImages = instructionImages
+            instructionImages = instructionImages,
+            liked = liked
         )
 
+    }
+
+    /**
+     * Likes a recipe on [user]'s behalf. A recipe's own owner can never like it - see
+     * the class-level feature request this enforces: the frontend already never shows
+     * a like button on your own recipe (owners get RecipeEditor, not Blog - see
+     * routes/recipe/[id].tsx), but that's a UI convenience, not a security boundary,
+     * so it's re-checked here against a direct API call.
+     *
+     * Idempotent: liking an already-liked recipe is a no-op (no double count, no
+     * error) - see [RecipeRepository.insertLike].
+     *
+     * @param recipeId the recipe to like
+     * @param user the authenticated caller
+     * @return the caller's new like state and the recipe's up-to-date like count
+     * @throws NoSuchElementException if no recipe exists with this id
+     * @throws ForbiddenException if [user] is the recipe's own owner
+     */
+    @Transactional
+    fun likeRecipe(recipeId: UUID, user: UsersRecord): LikeStatusDTO {
+        val recipe = recipeRepository.selectRecipeBase(recipeId)
+            ?: throw NoSuchElementException("The recipe you are looking for does not exist")
+
+        if (recipe.userId == user.id) {
+            throw ForbiddenException("You cannot like your own recipe")
+        }
+
+        if (recipeRepository.insertLike(recipeId, user.id.dbNotNull("id"))) {
+            recipeRepository.incrementLikes(recipeId, 1)
+        }
+
+        return LikeStatusDTO(liked = true, likes = recipeRepository.selectLikesCount(recipeId))
+    }
+
+    /**
+     * Removes [user]'s like from a recipe. Idempotent, same reasoning as [likeRecipe]:
+     * unliking a recipe that was never liked (or already unliked - e.g. a duplicate
+     * click/request) is a no-op rather than an error.
+     *
+     * @param recipeId the recipe to unlike
+     * @param user the authenticated caller
+     * @return the caller's new like state and the recipe's up-to-date like count
+     * @throws NoSuchElementException if no recipe exists with this id
+     */
+    @Transactional
+    fun unlikeRecipe(recipeId: UUID, user: UsersRecord): LikeStatusDTO {
+        recipeRepository.selectRecipeBase(recipeId)
+            ?: throw NoSuchElementException("The recipe you are looking for does not exist")
+
+        if (recipeRepository.deleteLike(recipeId, user.id.dbNotNull("id"))) {
+            recipeRepository.incrementLikes(recipeId, -1)
+        }
+
+        return LikeStatusDTO(liked = false, likes = recipeRepository.selectLikesCount(recipeId))
     }
 
     /**
@@ -252,10 +317,11 @@ class RecipeService(
     /**
      * @param q optional fuzzy name filter (see [RecipeRepository.selectRecipesWithFilters])
      * @param userId optional owner filter
+     * @param orderByLikes see [RecipeRepository.selectRecipesWithFilters]
      * @return matching recipes, capped at 100, as (id, name) pairs
      */
-    fun searchRecipes(q: String? = null, userId: UUID? = null): List<Pair<UUID, String>> =
+    fun searchRecipes(q: String? = null, userId: UUID? = null, orderByLikes: Boolean = false): List<Pair<UUID, String>> =
 
-        recipeRepository.selectRecipesWithFilters(q, userId)
+        recipeRepository.selectRecipesWithFilters(q, userId, orderByLikes)
 
 }

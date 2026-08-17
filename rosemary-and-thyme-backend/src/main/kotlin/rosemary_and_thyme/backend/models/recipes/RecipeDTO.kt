@@ -22,6 +22,11 @@ import java.util.UUID
  * @property name the recipe's title
  * @property description a short description of the recipe
  * @property likes the recipe's like count
+ * @property liked whether the *requesting* caller has liked this recipe - `false`
+ * for an anonymous caller or one who simply hasn't liked it (see
+ * [rosemary_and_thyme.backend.services.recipes.RecipeService.findRecipeById]); never
+ * true for the recipe's own owner, since a recipe's owner can't like it (see
+ * [rosemary_and_thyme.backend.services.recipes.RecipeService.likeRecipe])
  * @property portions how many portions the recipe makes
  * @property cookTime a free-text cook time (e.g. "45 min")
  * @property difficulty difficulty rating, constrained to 1..5 by a DB check constraint
@@ -41,6 +46,7 @@ data class RecipeDTO(
     val name: String,
     val description: String,
     val likes: Long,
+    val liked: Boolean,
     val portions: Int,
     val cookTime: String,
     val difficulty: Int,

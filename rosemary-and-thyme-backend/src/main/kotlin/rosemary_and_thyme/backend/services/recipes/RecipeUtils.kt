@@ -44,6 +44,10 @@ object RecipeUtils {
      * @param heroImages hero images as imageId -> url. TODO: narrow this to just the
      * ordered list of image ids the caller actually needs (see the inline TODO in
      * [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.selectHeroImages] call sites).
+     * @param liked whether the requesting caller has liked this recipe - `false` by
+     * default so callers that don't care about like state (e.g. after a save, where
+     * the caller is always the recipe's own owner and thus can never have liked it)
+     * don't need to pass anything
      * @return the assembled [RecipeDTO], ready to serialize back to the client
      */
     fun buildRecipeDTO(
@@ -52,7 +56,8 @@ object RecipeUtils {
         instructions: List<InstructionsRecord>,
         instructionImages: Map<UUID, List<Pair<UUID, String>>>,
         //Change to receive only List<UUID> representing those images
-        heroImages: Map<UUID, String>
+        heroImages: Map<UUID, String>,
+        liked: Boolean = false
     ): RecipeDTO {
 
         val imagesMap = mutableMapOf<UUID, RecipeImageDTO>()
@@ -71,6 +76,7 @@ object RecipeUtils {
             name = recipe.name,
             description = recipe.description,
             likes = recipe.likes.dbNotNull("likes"),
+            liked = liked,
             portions = recipe.portions,
             cookTime = recipe.cookTime,
             difficulty = recipe.difficulty,

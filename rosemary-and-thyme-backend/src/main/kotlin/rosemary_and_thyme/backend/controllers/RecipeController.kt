@@ -4,8 +4,10 @@ import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.util.MultiValueMap
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
+import rosemary_and_thyme.backend.models.recipes.LikeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
 import rosemary_and_thyme.backend.services.recipes.RecipeService
 import java.util.UUID
@@ -34,14 +37,21 @@ class RecipeController(private val recipeService: RecipeService) {
     /**
      * Publicly readable - permitted without auth in
      * [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain].
+     * [user] is still resolved when present (an authenticated caller viewing this
+     * without owning it) purely to fill in [RecipeDTO.liked] - it's nullable/optional
+     * here specifically because this route stays open to anonymous callers too.
      *
      * @param id the recipe's id
+     * @param user the authenticated caller, or `null` for an anonymous viewer
      * @return 200 OK with the full [RecipeDTO], or a 404 problem-detail body (via
      * [GlobalExceptionHandler.handleNotFound]) if no recipe exists with that id
      */
     @GetMapping("/{id}")
-    fun getRecipeById(@PathVariable id: UUID): ResponseEntity<RecipeDTO> {
-        val recipe = recipeService.findRecipeById(id)
+    fun getRecipeById(
+        @PathVariable id: UUID,
+        @AuthenticationPrincipal user: UsersRecord?
+    ): ResponseEntity<RecipeDTO> {
+        val recipe = recipeService.findRecipeById(id, user?.id)
         return ResponseEntity.ok(recipe)
     }
 
@@ -89,19 +99,61 @@ class RecipeController(private val recipeService: RecipeService) {
 
     /**
      * Fuzzy-searches recipes across all users by name (trigram similarity - see
-     * [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.selectRecipesWithFilters]).
-     * The scoped, "my recipes only" equivalent is [UserController.searchOwnRecipes].
+     * [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.selectRecipesWithFilters]),
+     * ordered by like count - this is the "browse/discover popular recipes" endpoint
+     * (see the frontend's home page search bar), not a precise lookup, so it always
+     * favors popularity over name-match relevance once [q] has narrowed the results.
+     * Publicly readable - permitAll in
+     * [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain] -
+     * same reasoning as `GET /recipe/{id}`: recipes (and finding them) are public.
      *
-     * @param q optional name filter; when omitted, results are sorted alphabetically
-     * instead of by match relevance
+     * The scoped, "my recipes only" equivalent (relevance/alphabetical order, not
+     * popularity) is [UserController.searchOwnRecipes].
+     *
+     * @param q optional name filter; when omitted, every recipe is eligible
+     * (still capped at 100, still ordered by likes)
      * @param userId optional filter to only this user's recipes
-     * @return 200 OK with matching recipes, capped at 100, as (id, name) pairs
+     * @return 200 OK with matching recipes, capped at 100, as (id, name) pairs, most-liked first
      */
     @GetMapping("/search")
     fun searchRecipes(
         @RequestParam(required = false) q: String?,
         @RequestParam(required = false) userId: UUID?
     ): ResponseEntity<List<Pair<UUID, String>>> =
-        ResponseEntity.ok(recipeService.searchRecipes(q, userId))
+        ResponseEntity.ok(recipeService.searchRecipes(q, userId, orderByLikes = true))
+
+    /**
+     * Likes a recipe on the caller's behalf. Not in the `permitAll()` list in
+     * [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain],
+     * so an unauthenticated request is rejected before this method body ever runs -
+     * the frontend is expected to redirect to login itself rather than let that
+     * happen (see queries/likeRecipe.ts), this is the defense-in-depth backstop.
+     * Idempotent and ownership-checked - see [RecipeService.likeRecipe].
+     *
+     * @param id the recipe to like
+     * @param user the authenticated caller
+     * @return 200 OK with the caller's new like state and the recipe's up-to-date count
+     */
+    @PostMapping("/{id}/like")
+    fun likeRecipe(
+        @PathVariable id: UUID,
+        @AuthenticationPrincipal user: UsersRecord
+    ): ResponseEntity<LikeStatusDTO> =
+        ResponseEntity.ok(recipeService.likeRecipe(id, user))
+
+    /**
+     * Removes the caller's like from a recipe. Same auth/idempotency notes as
+     * [likeRecipe] - see [RecipeService.unlikeRecipe].
+     *
+     * @param id the recipe to unlike
+     * @param user the authenticated caller
+     * @return 200 OK with the caller's new like state and the recipe's up-to-date count
+     */
+    @DeleteMapping("/{id}/like")
+    fun unlikeRecipe(
+        @PathVariable id: UUID,
+        @AuthenticationPrincipal user: UsersRecord
+    ): ResponseEntity<LikeStatusDTO> =
+        ResponseEntity.ok(recipeService.unlikeRecipe(id, user))
 
 }

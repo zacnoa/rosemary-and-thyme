@@ -121,6 +121,22 @@ CREATE TABLE IF NOT EXISTS public.recipes
     CONSTRAINT recipes_difficulty_check CHECK (difficulty >= 1 AND difficulty <= 5)
 );
 
+-- Tracks which user liked which recipe - a composite PK (rather than a
+-- surrogate id) both prevents a user from liking the same recipe twice at
+-- the DB level (a second INSERT for the same pair violates the PK) and
+-- doubles as the index RecipeRepository.hasUserLikedRecipe()/likeRecipe()
+-- need to check "did this user already like this recipe" in one lookup.
+-- recipes.likes above stays a separately-maintained counter (incremented/
+-- decremented alongside inserts/deletes here, see RecipeService.likeRecipe/
+-- unlikeRecipe) rather than being derived with COUNT(*) on every read.
+CREATE TABLE IF NOT EXISTS public.recipe_likes
+(
+    recipe_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT recipe_likes_pkey PRIMARY KEY (recipe_id, user_id)
+);
+
 -- MATCH SIMPLE is Postgres's default FK matching behavior when omitted -
 -- dropped here (vs. what pgAdmin's ERD tool emits) purely because jOOQ's
 -- DDLDatabase parser doesn't recognize the MATCH clause; no functional change.
@@ -175,6 +191,18 @@ ALTER TABLE IF EXISTS public.instructions
 
 ALTER TABLE IF EXISTS public.recipes
     ADD CONSTRAINT recipes_user_id_fkey FOREIGN KEY (user_id)
+    REFERENCES app_auth.users (id)
+    ON UPDATE NO ACTION
+    ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS public.recipe_likes
+    ADD CONSTRAINT recipe_likes_recipe_id_fkey FOREIGN KEY (recipe_id)
+    REFERENCES public.recipes (id)
+    ON UPDATE NO ACTION
+    ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS public.recipe_likes
+    ADD CONSTRAINT recipe_likes_user_id_fkey FOREIGN KEY (user_id)
     REFERENCES app_auth.users (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;

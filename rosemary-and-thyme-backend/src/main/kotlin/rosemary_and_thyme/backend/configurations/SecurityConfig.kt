@@ -61,8 +61,10 @@ class SecurityConfig(
      *   `HttpSession`; auth state for each request comes entirely from
      *   [SessionAuthFilter] validating the `session_cookie` value against the DB, not
      *   from anything Spring Security stores server-side itself
-     * - public endpoints: login/register/verify-email(+resend), and `GET /recipe/{id}`
-     *   (recipes are publicly viewable); everything else requires authentication
+     * - public endpoints: login/register/verify-email(+resend), `GET /recipe/{id}`,
+     *   and `GET /recipe/search` (recipes - and finding them - are publicly viewable;
+     *   `RecipeController.searchRecipes` never returns anything but id/name pairs, no
+     *   private data); everything else requires authentication
      * - filter order: [rateLimitFilter] before [sessionFilter] before Spring Security's
      *   own `UsernamePasswordAuthenticationFilter` - rate limiting rejects abusive
      *   requests before any session validation work happens, and session validation
@@ -87,6 +89,7 @@ class SecurityConfig(
                     "/auth/verify-email/resend"
                 ).permitAll()
                 it.requestMatchers(HttpMethod.GET, "/recipe/{id}").permitAll()
+                it.requestMatchers(HttpMethod.GET, "/recipe/search").permitAll()
                 it.anyRequest().authenticated()
             }
             .addFilterBefore(

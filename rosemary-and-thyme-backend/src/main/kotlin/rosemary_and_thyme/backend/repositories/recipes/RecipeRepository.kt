@@ -11,6 +11,7 @@ import rosemary_and_thyme.backend.jooqgenerated.public.tables.Ingredients.Compan
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.InstructionImages.Companion.INSTRUCTION_IMAGES
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.Instructions.Companion.INSTRUCTIONS
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.Recipes.Companion.RECIPES
+import rosemary_and_thyme.backend.jooqgenerated.public.tables.RecipeLikes.Companion.RECIPE_LIKES
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.*
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.references.IMAGES
 import rosemary_and_thyme.backend.models.recipes.IngredientDTO
@@ -561,23 +562,105 @@ class RecipeRepository(val dsl: DSLContext) {
      *
      * @param q optional name filter, matched with Postgres's trigram `%` similarity
      * operator (via `pg_trgm`) rather than an exact/prefix match, so typos and partial
-     * words still find results; when present, results are ranked by [nameSimilarity] descending
+     * words still find results; when present and [orderByLikes] is `false`, results
+     * are ranked by [nameSimilarity] descending instead of alphabetically
      * @param userId optional owner filter
-     * @return up to 100 matching recipes as (id, name) pairs, sorted by relevance if
-     * [q] was given, alphabetically otherwise
+     * @param orderByLikes sorts by [rosemary_and_thyme.backend.jooqgenerated.public.tables.Recipes.LIKES]
+     * descending instead - for browsing/discovering recipes across all users by
+     * popularity (see [rosemary_and_thyme.backend.controllers.RecipeController.searchRecipes],
+     * the only caller that sets this), as opposed to [q]'s ordinary purpose of
+     * quickly relocating one specific recipe you already know the name of (see
+     * [rosemary_and_thyme.backend.controllers.UserController.searchOwnRecipes], which
+     * never sets this - name relevance/alphabetical order suits "my own handful of
+     * recipes" better than popularity does). Applies whether or not [q] is given -
+     * [q] still narrows by name via the `%` condition below either way, only the
+     * *order* of the (possibly narrowed) results changes.
+     * @return up to 100 matching recipes as (id, name) pairs
      */
-    fun selectRecipesWithFilters(q: String? = null, userId: UUID? = null): List<Pair<UUID, String>> {
+    fun selectRecipesWithFilters(
+        q: String? = null,
+        userId: UUID? = null,
+        orderByLikes: Boolean = false
+    ): List<Pair<UUID, String>> {
         val conditions = mutableListOf<Condition>()
 
         q?.let { conditions += DSL.condition("{0} % {1}", RECIPES.NAME, it) }
         userId?.let { conditions += RECIPES.USER_ID.eq(it) }
 
+        val order = when {
+            orderByLikes -> RECIPES.LIKES.desc()
+            q != null -> nameSimilarity(q).desc()
+            else -> RECIPES.NAME.asc()
+        }
+
         return dsl.select(RECIPES.ID, RECIPES.NAME)
             .from(RECIPES)
             .where(conditions)
-            .orderBy(if (q != null) nameSimilarity(q).desc() else RECIPES.NAME.asc())
+            .orderBy(order)
             .limit(100)
             .fetch { Pair(it[RECIPES.ID].dbNotNull("id"), it[RECIPES.NAME].dbNotNull("name")) }
     }
+
+    /** @return whether [userId] has already liked [recipeId] - backs the `liked` field on [RecipeDTO]. */
+    fun hasUserLikedRecipe(recipeId: UUID, userId: UUID): Boolean =
+        dsl.fetchExists(
+            dsl.selectOne()
+                .from(RECIPE_LIKES)
+                .where(RECIPE_LIKES.RECIPE_ID.eq(recipeId))
+                .and(RECIPE_LIKES.USER_ID.eq(userId))
+        )
+
+    /**
+     * Records that [userId] likes [recipeId], if they don't already. `ON CONFLICT DO
+     * NOTHING` (the composite PK on `recipe_likes` is the conflict target) makes this
+     * safe against a duplicate/racing request re-liking an already-liked recipe -
+     * without it, a second identical request would either throw a PK-violation
+     * exception or (if checked-then-inserted non-atomically) double the counter via a
+     * race between the existence check and the insert.
+     *
+     * @return `true` if a new like row was actually inserted (so the caller should
+     * also bump [incrementLikes]), `false` if [userId] had already liked this recipe
+     */
+    fun insertLike(recipeId: UUID, userId: UUID): Boolean =
+        dsl.insertInto(RECIPE_LIKES)
+            .set(RECIPE_LIKES.RECIPE_ID, recipeId)
+            .set(RECIPE_LIKES.USER_ID, userId)
+            .onConflictDoNothing()
+            .execute() == 1
+
+    /**
+     * Removes [userId]'s like on [recipeId], if one exists.
+     *
+     * @return `true` if a like row was actually deleted (so the caller should also
+     * decrement [incrementLikes] with a negative delta), `false` if [userId] hadn't
+     * liked this recipe in the first place
+     */
+    fun deleteLike(recipeId: UUID, userId: UUID): Boolean =
+        dsl.deleteFrom(RECIPE_LIKES)
+            .where(RECIPE_LIKES.RECIPE_ID.eq(recipeId))
+            .and(RECIPE_LIKES.USER_ID.eq(userId))
+            .execute() == 1
+
+    /**
+     * Adjusts a recipe's cached like counter. [delta] is `+1`/`-1` in practice (see
+     * [rosemary_and_thyme.backend.services.recipes.RecipeService.likeRecipe]/`unlikeRecipe`),
+     * applied as a single atomic `likes = likes + delta` update rather than a
+     * read-modify-write from application code, so concurrent likes on the same recipe
+     * can't lose an update to each other.
+     */
+    fun incrementLikes(recipeId: UUID, delta: Long) {
+        dsl.update(RECIPES)
+            .set(RECIPES.LIKES, RECIPES.LIKES.plus(delta))
+            .where(RECIPES.ID.eq(recipeId))
+            .execute()
+    }
+
+    /** @return the recipe's current like count, straight from the DB (not a caller-computed value). */
+    fun selectLikesCount(recipeId: UUID): Long =
+        dsl.select(RECIPES.LIKES)
+            .from(RECIPES)
+            .where(RECIPES.ID.eq(recipeId))
+            .fetchOne(RECIPES.LIKES)
+            .dbNotNull("likes")
 
 }
