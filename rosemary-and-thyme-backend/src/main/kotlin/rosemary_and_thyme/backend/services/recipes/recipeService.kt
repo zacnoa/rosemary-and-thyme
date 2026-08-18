@@ -19,6 +19,7 @@ import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.Instructio
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.RecipesRecord
 import rosemary_and_thyme.backend.models.recipes.LikeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedDTO
 import rosemary_and_thyme.backend.repositories.dbNotNull
 import rosemary_and_thyme.backend.repositories.recipes.RecipeRepository
 import java.util.NoSuchElementException
@@ -323,5 +324,29 @@ class RecipeService(
     fun searchRecipes(q: String? = null, userId: UUID? = null, orderByLikes: Boolean = false): List<Pair<UUID, String>> =
 
         recipeRepository.selectRecipesWithFilters(q, userId, orderByLikes)
+
+    /**
+     * Same filtering/ordering as [searchRecipes], but returns full feed cards (see
+     * [RecipeFeedDTO]) instead of (id, name) pairs - backs the home page's global
+     * recipe feed (see [rosemary_and_thyme.backend.controllers.RecipeController.searchRecipes]).
+     *
+     * Resolving each recipe's hero image is a second, separate query
+     * ([RecipeRepository.selectFirstHeroImages]) rather than a join in
+     * [RecipeRepository.selectRecipeFeed] itself, since a join there would either
+     * duplicate a recipe's row per hero image or need its own `DISTINCT ON` baked into
+     * a query that otherwise has nothing to do with images - simpler to keep as two
+     * queries merged here with a plain [Map] lookup.
+     *
+     * @param q optional fuzzy name filter, see [RecipeRepository.selectRecipeFeed]
+     * @param userId optional owner filter
+     * @param orderByLikes see [RecipeRepository.selectRecipesWithFilters]
+     * @return up to 100 matching recipes as feed cards, each with its first hero image
+     * (or `null` if it has none) resolved
+     */
+    fun searchRecipeFeed(q: String? = null, userId: UUID? = null, orderByLikes: Boolean = false): List<RecipeFeedDTO> {
+        val recipes = recipeRepository.selectRecipeFeed(q, userId, orderByLikes)
+        val heroImages = recipeRepository.selectFirstHeroImages(recipes.map { it.id })
+        return recipes.map { it.copy(heroImageUrl = heroImages[it.id]) }
+    }
 
 }

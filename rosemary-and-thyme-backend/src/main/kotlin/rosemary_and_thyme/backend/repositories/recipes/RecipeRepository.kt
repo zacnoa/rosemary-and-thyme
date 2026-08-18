@@ -17,6 +17,7 @@ import rosemary_and_thyme.backend.jooqgenerated.public.tables.references.IMAGES
 import rosemary_and_thyme.backend.models.recipes.IngredientDTO
 import rosemary_and_thyme.backend.models.recipes.InstructionDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeImageDTO
 import rosemary_and_thyme.backend.repositories.dbNotNull
 import java.util.*
@@ -558,47 +559,135 @@ class RecipeRepository(val dsl: DSLContext) {
         DSL.function("similarity", SQLDataType.DOUBLE, RECIPES.NAME, DSL.value(term))
 
     /**
-     * Fuzzy-searches recipes by name and/or owner.
+     * Shared by [selectRecipesWithFilters] and [selectRecipeFeed] - both filter recipes
+     * by the same optional name/owner criteria, they only differ in which columns they
+     * select and what they turn each row into.
      *
      * @param q optional name filter, matched with Postgres's trigram `%` similarity
      * operator (via `pg_trgm`) rather than an exact/prefix match, so typos and partial
-     * words still find results; when present and [orderByLikes] is `false`, results
-     * are ranked by [nameSimilarity] descending instead of alphabetically
+     * words still find results
+     * @param userId optional owner filter
+     */
+    private fun searchConditions(q: String?, userId: UUID?): List<Condition> {
+        val conditions = mutableListOf<Condition>()
+        q?.let { conditions += DSL.condition("{0} % {1}", RECIPES.NAME, it) }
+        userId?.let { conditions += RECIPES.USER_ID.eq(it) }
+        return conditions
+    }
+
+    /**
+     * Shared by [selectRecipesWithFilters] and [selectRecipeFeed] - see
+     * [selectRecipesWithFilters]'s [orderByLikes] doc for the full reasoning behind the
+     * three-way choice here.
+     */
+    private fun searchOrder(q: String?, orderByLikes: Boolean) = when {
+        orderByLikes -> RECIPES.LIKES.desc()
+        q != null -> nameSimilarity(q).desc()
+        else -> RECIPES.NAME.asc()
+    }
+
+    /**
+     * Fuzzy-searches recipes by name and/or owner.
+     *
+     * @param q optional name filter - see [searchConditions]; when present and
+     * [orderByLikes] is `false`, results are ranked by [nameSimilarity] descending
+     * instead of alphabetically
      * @param userId optional owner filter
      * @param orderByLikes sorts by [rosemary_and_thyme.backend.jooqgenerated.public.tables.Recipes.LIKES]
      * descending instead - for browsing/discovering recipes across all users by
-     * popularity (see [rosemary_and_thyme.backend.controllers.RecipeController.searchRecipes],
-     * the only caller that sets this), as opposed to [q]'s ordinary purpose of
-     * quickly relocating one specific recipe you already know the name of (see
-     * [rosemary_and_thyme.backend.controllers.UserController.searchOwnRecipes], which
-     * never sets this - name relevance/alphabetical order suits "my own handful of
-     * recipes" better than popularity does). Applies whether or not [q] is given -
-     * [q] still narrows by name via the `%` condition below either way, only the
-     * *order* of the (possibly narrowed) results changes.
-     * @return up to 100 matching recipes as (id, name) pairs
+     * popularity, as opposed to [q]'s ordinary purpose of quickly relocating one
+     * specific recipe you already know the name of (see
+     * [rosemary_and_thyme.backend.controllers.UserController.searchOwnRecipes], the
+     * only caller that leaves this at its default `false` - name relevance/alphabetical
+     * order suits "my own handful of recipes" better than popularity does). Applies
+     * whether or not [q] is given - [q] still narrows by name via the `%` condition
+     * either way, only the *order* of the (possibly narrowed) results changes.
+     * @return up to 100 matching recipes as (id, name) pairs - the lightweight shape
+     * needed for a quick name lookup; [selectRecipeFeed] is the equivalent for a full
+     * feed card
      */
     fun selectRecipesWithFilters(
         q: String? = null,
         userId: UUID? = null,
         orderByLikes: Boolean = false
-    ): List<Pair<UUID, String>> {
-        val conditions = mutableListOf<Condition>()
-
-        q?.let { conditions += DSL.condition("{0} % {1}", RECIPES.NAME, it) }
-        userId?.let { conditions += RECIPES.USER_ID.eq(it) }
-
-        val order = when {
-            orderByLikes -> RECIPES.LIKES.desc()
-            q != null -> nameSimilarity(q).desc()
-            else -> RECIPES.NAME.asc()
-        }
-
-        return dsl.select(RECIPES.ID, RECIPES.NAME)
+    ): List<Pair<UUID, String>> =
+        dsl.select(RECIPES.ID, RECIPES.NAME)
             .from(RECIPES)
-            .where(conditions)
-            .orderBy(order)
+            .where(searchConditions(q, userId))
+            .orderBy(searchOrder(q, orderByLikes))
             .limit(100)
             .fetch { Pair(it[RECIPES.ID].dbNotNull("id"), it[RECIPES.NAME].dbNotNull("name")) }
+
+    /**
+     * Same fuzzy name/owner filtering and ordering as [selectRecipesWithFilters] (see
+     * its doc for the full reasoning), but selects the full set of columns a feed card
+     * needs (see [RecipeFeedDTO]) instead of just (id, name) - backs
+     * [rosemary_and_thyme.backend.controllers.RecipeController.searchRecipes], the home
+     * page's global recipe feed. Kept as a separate query rather than widening
+     * [selectRecipesWithFilters] itself, since that one's only other caller
+     * ([rosemary_and_thyme.backend.controllers.UserController.searchOwnRecipes]) only
+     * ever needs the lightweight (id, name) shape - fetching every extra feed column
+     * there would be wasted work for a "find one of my own recipes" lookup.
+     *
+     * [RecipeFeedDTO.heroImageUrl] is left `null` here on every row - a recipe can have
+     * zero or several hero images, which doesn't fit this flat per-recipe row, so it's
+     * resolved separately by [selectFirstHeroImages] once these ids are known (see
+     * [rosemary_and_thyme.backend.services.recipes.RecipeService.searchRecipeFeed],
+     * the only caller, which merges the two).
+     *
+     * @param q optional name filter, see [selectRecipesWithFilters]
+     * @param userId optional owner filter
+     * @param orderByLikes see [selectRecipesWithFilters]
+     * @return up to 100 matching recipes as feed cards, hero image not yet resolved
+     */
+    fun selectRecipeFeed(
+        q: String? = null,
+        userId: UUID? = null,
+        orderByLikes: Boolean = false
+    ): List<RecipeFeedDTO> =
+        dsl.select(
+            RECIPES.ID, RECIPES.NAME, RECIPES.DESCRIPTION, RECIPES.LIKES,
+            RECIPES.USER_NAME, RECIPES.CREATED_DATE
+        )
+            .from(RECIPES)
+            .where(searchConditions(q, userId))
+            .orderBy(searchOrder(q, orderByLikes))
+            .limit(100)
+            .fetch {
+                RecipeFeedDTO(
+                    id = it[RECIPES.ID].dbNotNull("id"),
+                    name = it[RECIPES.NAME].dbNotNull("name"),
+                    description = it[RECIPES.DESCRIPTION].dbNotNull("description"),
+                    likes = it[RECIPES.LIKES].dbNotNull("likes"),
+                    userName = it[RECIPES.USER_NAME].dbNotNull("user_name"),
+                    createDate = it[RECIPES.CREATED_DATE].dbNotNull("created_date"),
+                    heroImageUrl = null
+                )
+            }
+
+    /**
+     * First (lowest-index) hero image url for each of [recipeIds], one row per recipe
+     * via Postgres `DISTINCT ON` - used to give each feed card a single preview image
+     * without fetching/returning every hero image for every listed recipe.
+     *
+     * @param recipeIds recipes to fetch a preview image for, e.g. one page of
+     * [selectRecipeFeed] results
+     * @return recipeId -> that recipe's first hero image url; a recipe with no hero
+     * image at all is simply absent from the map (see
+     * [rosemary_and_thyme.backend.services.recipes.RecipeService.searchRecipeFeed],
+     * which treats a missing entry as "no image")
+     */
+    fun selectFirstHeroImages(recipeIds: List<UUID>): Map<UUID, String> {
+        if (recipeIds.isEmpty()) return emptyMap()
+
+        return dsl.select(HERO_IMAGES.RECIPE_ID, IMAGES.URL)
+            .distinctOn(HERO_IMAGES.RECIPE_ID)
+            .from(HERO_IMAGES)
+            .join(IMAGES).on(HERO_IMAGES.IMAGE_ID.eq(IMAGES.ID))
+            .where(HERO_IMAGES.RECIPE_ID.`in`(recipeIds))
+            .orderBy(HERO_IMAGES.RECIPE_ID, HERO_IMAGES.INDEX)
+            .fetch()
+            .associate { it[HERO_IMAGES.RECIPE_ID].dbNotNull("recipe_id") to it[IMAGES.URL].dbNotNull("url") }
     }
 
     /** @return whether [userId] has already liked [recipeId] - backs the `liked` field on [RecipeDTO]. */

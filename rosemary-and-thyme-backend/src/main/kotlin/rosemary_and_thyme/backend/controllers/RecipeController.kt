@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile
 import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.models.recipes.LikeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedDTO
 import rosemary_and_thyme.backend.services.recipes.RecipeService
 import java.util.UUID
 
@@ -99,28 +100,32 @@ class RecipeController(private val recipeService: RecipeService) {
 
     /**
      * Fuzzy-searches recipes across all users by name (trigram similarity - see
-     * [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.selectRecipesWithFilters]),
+     * [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.selectRecipeFeed]),
      * ordered by like count - this is the "browse/discover popular recipes" endpoint
-     * (see the frontend's home page search bar), not a precise lookup, so it always
+     * behind the home page's global recipe feed, not a precise lookup, so it always
      * favors popularity over name-match relevance once [q] has narrowed the results.
-     * Publicly readable - permitAll in
+     * Returns a full [RecipeFeedDTO] per result (not just id/name) since each one is
+     * rendered as a feed card. Publicly readable - permitAll in
      * [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain] -
      * same reasoning as `GET /recipe/{id}`: recipes (and finding them) are public.
      *
-     * The scoped, "my recipes only" equivalent (relevance/alphabetical order, not
-     * popularity) is [UserController.searchOwnRecipes].
+     * The scoped, "my recipes only" equivalent - relevance/alphabetical order, not
+     * popularity, and the lightweight (id, name) shape rather than a full feed card -
+     * is [UserController.searchOwnRecipes]. This endpoint already accepts [userId] too,
+     * so a future "my recipes, shown the same way everyone else's are" dashboard view
+     * can reuse it directly rather than needing a third route.
      *
      * @param q optional name filter; when omitted, every recipe is eligible
      * (still capped at 100, still ordered by likes)
      * @param userId optional filter to only this user's recipes
-     * @return 200 OK with matching recipes, capped at 100, as (id, name) pairs, most-liked first
+     * @return 200 OK with matching recipes, capped at 100, as feed cards, most-liked first
      */
     @GetMapping("/search")
     fun searchRecipes(
         @RequestParam(required = false) q: String?,
         @RequestParam(required = false) userId: UUID?
-    ): ResponseEntity<List<Pair<UUID, String>>> =
-        ResponseEntity.ok(recipeService.searchRecipes(q, userId, orderByLikes = true))
+    ): ResponseEntity<List<RecipeFeedDTO>> =
+        ResponseEntity.ok(recipeService.searchRecipeFeed(q, userId, orderByLikes = true))
 
     /**
      * Likes a recipe on the caller's behalf. Not in the `permitAll()` list in
