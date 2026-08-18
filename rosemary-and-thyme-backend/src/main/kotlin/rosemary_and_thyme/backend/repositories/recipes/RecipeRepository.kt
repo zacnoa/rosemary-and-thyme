@@ -460,6 +460,19 @@ class RecipeRepository(val dsl: DSLContext) {
             .where(RECIPES.ID.eq(recipeId))
             .fetchOneInto(RecipesRecord::class.java)
 
+    /**
+     * Deletes a recipe's base row - `ON DELETE CASCADE` (db/schema.sql) takes every
+     * ingredient/instruction/hero_image/instruction_image/recipe_likes/images row that
+     * referenced it along with it, so this one statement is the entire DB side of
+     * deleting a recipe (see [rosemary_and_thyme.backend.services.recipes.RecipeService.deleteRecipe],
+     * the only caller, which handles the non-DB Cloudinary cleanup separately).
+     */
+    fun deleteRecipeBase(recipeId: UUID) {
+        dsl.deleteFrom(RECIPES)
+            .where(RECIPES.ID.eq(recipeId))
+            .execute()
+    }
+
     /** @return the recipe's ingredients, in display order */
     fun selectIngredients(recipeId: UUID): List<IngredientsRecord> =
         dsl.selectFrom(INGREDIENTS)

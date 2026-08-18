@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
@@ -43,6 +44,8 @@ class RecipeService(
     @Value($$"${cloudinary.api-key}") private val apiKey: String,
     @Value($$"${cloudinary.api-secret}") private val apiSecret: String
 ) {
+    private val log = LoggerFactory.getLogger(RecipeService::class.java)
+
     private val cloudinary by lazy {
         Cloudinary(
             mapOf(
@@ -52,6 +55,34 @@ class RecipeService(
                 "secure" to true
             )
         )
+    }
+
+    /**
+     * Best-effort Cloudinary cleanup for a batch of image urls - one retry per image
+     * (covers the common case of a single transient network blip), logging (rather
+     * than throwing) if an image still can't be deleted after that. Shared by
+     * [saveRecipe] (removing images the caller actually deleted/replaced, and rolling
+     * back newly-uploaded ones on a failed save) and [deleteRecipe] (removing every
+     * image a whole deleted recipe had).
+     *
+     * Deliberately never throws: by the time this runs, the DB side of whatever
+     * operation triggered it (a save's diff, or a recipe row delete) has already
+     * succeeded and is the source of truth - a Cloudinary hiccup shouldn't turn that
+     * into a user-facing error, it should just leave one orphaned file logged for
+     * later manual cleanup instead of silently losing all trace of it.
+     */
+    private fun destroyCloudinaryImages(urls: Collection<String>) {
+        urls.forEach { url ->
+            val publicId = RecipeUtils.extractPublicId(url)
+            for (attempt in 1..2) {
+                try {
+                    cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap())
+                    return@forEach
+                } catch (e: Exception) {
+                    if (attempt == 2) log.warn("Failed to delete Cloudinary image {} after retry", publicId, e)
+                }
+            }
+        }
     }
 
     /**
@@ -170,6 +201,38 @@ class RecipeService(
     }
 
     /**
+     * Deletes a recipe and every image it had, on [user]'s behalf. Same ownership
+     * check as [saveRecipe] - only the recipe's own owner can delete it.
+     *
+     * Order matters: the recipe row is deleted first ([RecipeRepository.deleteRecipeBase],
+     * `ON DELETE CASCADE` takes every ingredient/instruction/hero_image/instruction_image/
+     * recipe_likes/images DB row with it), and only *then* is Cloudinary cleaned up
+     * ([destroyCloudinaryImages]) - the DB delete is the one operation that actually
+     * matters and is (for all practical purposes) guaranteed to succeed, so it's not
+     * left waiting on a slower, less reliable third-party call first. If the Cloudinary
+     * step fails partway, the recipe is still gone as far as the app is concerned; see
+     * [destroyCloudinaryImages] for why that's an acceptable, logged, best-effort outcome
+     * rather than something this method needs to guard against.
+     *
+     * @param recipeId the recipe to delete
+     * @param user the authenticated caller
+     * @throws NoSuchElementException if no recipe exists with this id
+     * @throws ForbiddenException if [user] is not the recipe's owner
+     */
+    fun deleteRecipe(recipeId: UUID, user: UsersRecord) {
+        val recipe = recipeRepository.selectRecipeBase(recipeId)
+            ?: throw NoSuchElementException("The recipe you are looking for does not exist")
+
+        if (recipe.userId != user.id) {
+            throw ForbiddenException("You are not the owner of this recipe")
+        }
+
+        val images = recipeRepository.selectAllImagesForRecipe(recipeId)
+        recipeRepository.deleteRecipeBase(recipeId)
+        destroyCloudinaryImages(images.values)
+    }
+
+    /**
      * Creates or updates a recipe together with its image files, keeping Cloudinary and
      * the database consistent with each other.
      *
@@ -258,9 +321,7 @@ class RecipeService(
             }
 
             val deleteDeferred = async(Dispatchers.IO) {
-                deletedImages.values.forEach { url ->
-                    cloudinary.uploader().destroy(RecipeUtils.extractPublicId(url), ObjectUtils.emptyMap())
-                }
+                destroyCloudinaryImages(deletedImages.values)
             }
 
             uploadedUrls.addAll(uploadDeferred.await())
@@ -282,10 +343,7 @@ class RecipeService(
              */
             if (uploadedUrls.isNotEmpty()) {
                 withContext(Dispatchers.IO) {
-                    uploadedUrls.forEach { (_, url) ->
-                        val publicId = RecipeUtils.extractPublicId(url)
-                        cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap())
-                    }
+                    destroyCloudinaryImages(uploadedUrls.map { it.second })
                 }
             }
             throw e

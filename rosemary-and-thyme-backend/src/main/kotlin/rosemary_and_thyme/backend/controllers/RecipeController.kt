@@ -161,4 +161,24 @@ class RecipeController(private val recipeService: RecipeService) {
     ): ResponseEntity<LikeStatusDTO> =
         ResponseEntity.ok(recipeService.unlikeRecipe(id, user))
 
+    /**
+     * Deletes a recipe (and every image it had) on the caller's behalf. Not in the
+     * `permitAll()` list in [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain],
+     * so an unauthenticated request is rejected before this method body ever runs.
+     * Ownership-checked in [RecipeService.deleteRecipe] - a caller who isn't the
+     * recipe's owner gets a 403, not a silent no-op.
+     *
+     * @param id the recipe to delete
+     * @param user the authenticated caller
+     * @return 204 No Content on success
+     */
+    @DeleteMapping("/{id}")
+    fun deleteRecipe(
+        @PathVariable id: UUID,
+        @AuthenticationPrincipal user: UsersRecord
+    ): ResponseEntity<Void> {
+        recipeService.deleteRecipe(id, user)
+        return ResponseEntity.noContent().build()
+    }
+
 }
