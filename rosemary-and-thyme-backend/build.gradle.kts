@@ -35,6 +35,10 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-security")
+    // Google sign-in (see SecurityConfig.oauth2Login / GoogleOidcSuccessHandler) -
+    // authorization code exchange, PKCE/state, and ID token (JWKS) validation are
+    // all handled by this starter, not hand-rolled.
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
     implementation("org.jooq:jooq:3.21.2")

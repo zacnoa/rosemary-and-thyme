@@ -50,6 +50,39 @@ class UserRepository(val dsl: DSLContext) {
         }
     }
 
+    /**
+     * Inserts a new, already-verified user with no password - the Google sign-in
+     * counterpart of [insertUser] (see
+     * [rosemary_and_thyme.backend.services.auth.GoogleAuthService.resolveOrCreateUser],
+     * the only caller). Google has already verified the email, and there's no
+     * password to hash since an account like this only ever authenticates through
+     * Google - see [rosemary_and_thyme.backend.services.auth.AuthService.login]'s
+     * null-password guard for what stops a password login attempt against it.
+     *
+     * @param email must be unique, same constraint/race handling as [insertUser]
+     * @param userName the display name, taken from the Google profile
+     * @return the newly inserted row
+     * @throws UserAlreadyExistsException if [email] is already registered
+     */
+    fun insertOauthUser(email: String, userName: String): UsersRecord {
+
+        try {
+
+            return dsl.insertInto(USERS)
+                .set(USERS.EMAIL, email)
+                .set(USERS.USERNAME, userName)
+                .set(USERS.EMAIL_VERIFIED, true)
+                .returning()
+                .fetchOne() ?: throw IllegalStateException("Failed to insert user")
+        } catch (ex: DataAccessException) {
+            val sqlEx = ex.cause as? SQLException
+            if (sqlEx?.sqlState == "23505") {
+                throw UserAlreadyExistsException("A user with that email already exists")
+            }
+            throw ex
+        }
+    }
+
     /** @return the user with this id, or `null` if none exists */
     fun selectUserById(userId: UUID): UsersRecord? =
         dsl.selectFrom(USERS)

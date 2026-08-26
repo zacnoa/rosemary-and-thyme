@@ -37,12 +37,38 @@ CREATE TABLE IF NOT EXISTS app_auth.sessions
 CREATE TABLE IF NOT EXISTS app_auth.users
 (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
-    password character varying(255) COLLATE pg_catalog."default" NOT NULL,
+    -- nullable: a Google (or other future OAuth provider) account has nothing
+    -- to hash here - see app_auth.oauth_identities below and
+    -- AuthService.login()'s null-password guard, which stops a password
+    -- login attempt against an account like that. Every password-registered
+    -- account still always has one; this only relaxes the *column*.
+    password character varying(255) COLLATE pg_catalog."default",
     username character varying(100) COLLATE pg_catalog."default" NOT NULL,
     email character varying(100) COLLATE pg_catalog."default",
     email_verified boolean NOT NULL DEFAULT false,
     CONSTRAINT users_pkey PRIMARY KEY (id),
     CONSTRAINT users_email_key UNIQUE (email)
+);
+
+-- Links a third-party OAuth/OIDC identity (currently just Google) to one
+-- app_auth.users row. Kept as its own table rather than a "google_subject"
+-- column on users so a user can later have more than one linked provider,
+-- and so linking a provider onto an *existing* password account (see
+-- GoogleAuthService.resolveOrCreateUser - matched by verified email) never
+-- requires touching the users row itself.
+CREATE TABLE IF NOT EXISTS app_auth.oauth_identities
+(
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    -- e.g. "google" - a free-text discriminator rather than an enum so a
+    -- future provider is just a new value, no schema change
+    provider character varying(20) COLLATE pg_catalog."default" NOT NULL,
+    -- the provider's own stable user id (Google's OIDC "sub" claim) - never
+    -- the email, which a provider account can change
+    provider_subject character varying(255) COLLATE pg_catalog."default" NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT oauth_identities_pkey PRIMARY KEY (id),
+    CONSTRAINT oauth_identities_provider_subject_key UNIQUE (provider, provider_subject)
 );
 
 CREATE TABLE IF NOT EXISTS app_auth.email_verification_tokens
@@ -149,6 +175,12 @@ ALTER TABLE IF EXISTS app_auth.sessions
 
 ALTER TABLE IF EXISTS app_auth.email_verification_tokens
     ADD CONSTRAINT email_verification_tokens_user_id_fkey FOREIGN KEY (user_id)
+    REFERENCES app_auth.users (id)
+    ON UPDATE NO ACTION
+    ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS app_auth.oauth_identities
+    ADD CONSTRAINT oauth_identities_user_id_fkey FOREIGN KEY (user_id)
     REFERENCES app_auth.users (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;

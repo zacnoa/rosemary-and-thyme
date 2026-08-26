@@ -2,38 +2,41 @@ package rosemary_and_thyme.backend.controllers
 
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
-import org.springframework.http.ResponseCookie
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.CookieValue
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import org.springframework.beans.factory.annotation.Value
 import rosemary_and_thyme.backend.models.auth.LoginRequest
 import rosemary_and_thyme.backend.models.auth.RegisterRequest
 import rosemary_and_thyme.backend.models.auth.ResendVerificationRequest
 import rosemary_and_thyme.backend.models.auth.VerifyEmailRequest
 import rosemary_and_thyme.backend.services.auth.AuthService
-import java.time.Duration
+import rosemary_and_thyme.backend.services.auth.SessionCookieFactory
+import rosemary_and_thyme.backend.services.auth.sanitizeRedirectPath
 
 
 /**
- * Auth endpoints: register -> verify-email -> login -> logout.
+ * Auth endpoints: register -> verify-email -> login -> logout, plus [startGoogleLogin]
+ * (Google sign-in's callback is handled separately, by Spring Security's own
+ * `oauth2Login()` machinery and [rosemary_and_thyme.backend.configurations.GoogleOidcSuccessHandler] -
+ * neither goes through this controller).
  *
  * The session itself is a plain random token (see
  * [rosemary_and_thyme.backend.services.auth.SessionService]) carried by an
  * `httpOnly`/`Secure` cookie ("session_cookie") rather than a bearer header - every
- * endpoint here that establishes or ends a session sets that cookie via
- * [createSessionCookie]/[clearSessionCookie] instead of returning the token in the body.
- * Requests are authenticated from that cookie by
- * [rosemary_and_thyme.backend.filters.SessionAuthFilter].
+ * endpoint here that establishes or ends a session sets that cookie via [cookies]
+ * instead of returning the token in the body. Requests are authenticated from that
+ * cookie by [rosemary_and_thyme.backend.filters.SessionAuthFilter].
  */
 @RestController
 @RequestMapping("/auth")
 class AuthController(
     private val authService: AuthService,
-    @Value($$"${app.cookie-domain}") private val cookieDomain: String
+    private val cookies: SessionCookieFactory
 ) {
 
     /**
@@ -65,10 +68,9 @@ class AuthController(
     fun verifyEmail(@RequestBody request: VerifyEmailRequest): ResponseEntity<Unit> {
 
         val sessionToken = authService.verifyEmail(request.token)
-        val sessionCookie = createSessionCookie(sessionToken)
 
         return ResponseEntity.ok()
-            .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
+            .header(HttpHeaders.SET_COOKIE, cookies.session(sessionToken).toString())
             .build()
     }
 
@@ -100,14 +102,33 @@ class AuthController(
     @PostMapping("/login")
     fun login(@RequestBody request: LoginRequest): ResponseEntity<Unit> {
 
-        val sessionToken= authService.login(request.email, request.password)
+        val sessionToken = authService.login(request.email, request.password)
 
-        val sessionCookie = createSessionCookie(sessionToken)
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookies.session(sessionToken).toString())
+            .build()
+    }
 
+    /**
+     * Entry point for "Continue with Google" - not itself the OAuth2 redirect (that's
+     * Spring Security's own `/oauth2/authorization/google`, auto-configured from the
+     * `google` client registration in application.yaml), just a thin hop in front of
+     * it that stashes [redirect] in a short-lived cookie first. A plain query param
+     * on this URL wouldn't survive the round trip through Google and back on its
+     * own - [rosemary_and_thyme.backend.configurations.GoogleOidcSuccessHandler]
+     * reads the cookie back once Google's redirected here.
+     *
+     * @param redirect where to send the browser after a successful Google sign-in,
+     * sanitized via [sanitizeRedirectPath] before being trusted with anything
+     * @return 302 to Spring Security's own Google authorization endpoint, with the
+     * redirect cookie attached
+     */
+    @GetMapping("/google")
+    fun startGoogleLogin(@RequestParam(required = false) redirect: String?): ResponseEntity<Unit> {
 
-        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE,
-                sessionCookie.toString(),
-            )
+        return ResponseEntity.status(HttpStatus.FOUND)
+            .header(HttpHeaders.LOCATION, "/oauth2/authorization/google")
+            .header(HttpHeaders.SET_COOKIE, cookies.redirect(sanitizeRedirectPath(redirect)).toString())
             .build()
     }
 
@@ -131,53 +152,7 @@ class AuthController(
 
 
         return ResponseEntity.ok()
-            .header(
-                HttpHeaders.SET_COOKIE,
-                clearSessionCookie().toString()
-            )
+            .header(HttpHeaders.SET_COOKIE, cookies.clearedSession().toString())
             .build()
     }
-
-    /**
-     * Builds the `Set-Cookie` header value that hands a session token to the browser:
-     * `httpOnly` (not readable from JS, mitigates XSS token theft), `Secure` (HTTPS
-     * only), `SameSite=Strict` (not sent on cross-site requests, mitigates CSRF), and
-     * scoped to [cookieDomain] with a 30-day expiry matching the session TTL.
-     *
-     * @param sessionToken the raw session token to store in the cookie
-     * @return a `session_cookie` [ResponseCookie] ready to attach as a `Set-Cookie` header
-     */
-    private fun createSessionCookie(sessionToken: String): ResponseCookie =
-        ResponseCookie.from(
-            "session_cookie",
-            sessionToken
-        )
-            .httpOnly(true)
-            .secure(true)
-            .domain(cookieDomain)
-            .path("/")
-            .sameSite("Strict")
-            .maxAge(Duration.ofDays(30))
-            .build()
-
-    /**
-     * Builds the `Set-Cookie` header value that clears the session cookie on logout:
-     * same name/domain/path as [createSessionCookie] (required for the browser to match
-     * and overwrite it) but an empty value and `maxAge` of zero, which tells the browser
-     * to delete the cookie immediately.
-     *
-     * @return a `session_cookie` [ResponseCookie] that deletes the cookie client-side
-     */
-    private fun clearSessionCookie(): ResponseCookie =
-        ResponseCookie.from(
-            "session_cookie",
-            ""
-        )
-            .httpOnly(true)
-            .secure(true)
-            .domain(cookieDomain)
-            .path("/")
-            .sameSite("Strict")
-            .maxAge(Duration.ZERO)
-            .build()
 }

@@ -50,9 +50,12 @@ class AuthService(
      * @param password the account's plaintext password, checked against the stored BCrypt hash
      * @return a raw session token for the new session
      * @throws TooManyRequestsException if this email has exceeded [loginLimit]
-     * @throws UserCredentialsException if the email is unknown or the password doesn't match
-     * (the same generic message is used for both cases, so failed attempts can't be used
-     * to enumerate which emails are registered)
+     * @throws UserCredentialsException if the email is unknown, the account has no
+     * password to check against (a Google-only account - see
+     * [rosemary_and_thyme.backend.repositories.auth.UserRepository.insertOauthUser]),
+     * or the password doesn't match (the same generic message is used for all three
+     * cases, so failed attempts can't be used to enumerate which emails are
+     * registered or which sign-in method an email uses)
      * @throws EmailNotVerifiedException if the account exists but its email isn't verified yet
      */
     fun login(email: String, password: String): String {
@@ -65,7 +68,11 @@ class AuthService(
             userRepository.selectUserByEmail(email) ?: throw UserCredentialsException("Email or password not correct")
 
 
-        if (!BCrypt.checkpw(password, user.password)) {
+        // captured to a local val rather than smart-cast off `user.password == null` -
+        // it's a mutable `var` on the jOOQ record, so Kotlin won't smart-cast it
+        // across the `||` even within the same expression
+        val passwordHash = user.password
+        if (passwordHash == null || !BCrypt.checkpw(password, passwordHash)) {
             throw UserCredentialsException("Email or password not correct")
         }
 

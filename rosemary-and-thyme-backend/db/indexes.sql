@@ -14,6 +14,13 @@ CREATE INDEX IF NOT EXISTS sessions_user_id_idx
 CREATE INDEX IF NOT EXISTS email_verification_tokens_user_id_idx
     ON app_auth.email_verification_tokens(user_id);
 
+-- OauthIdentityRepository looks identities up by (provider, provider_subject),
+-- already covered by oauth_identities_provider_subject_key's own index - this
+-- one is purely for the FK column itself, same reasoning as the other two
+-- user_id indexes above/below.
+CREATE INDEX IF NOT EXISTS oauth_identities_user_id_idx
+    ON app_auth.oauth_identities(user_id);
+
 -- no extra index needed for hero_images.image_id -> images.id: image_id is
 -- already the primary key of hero_images
 

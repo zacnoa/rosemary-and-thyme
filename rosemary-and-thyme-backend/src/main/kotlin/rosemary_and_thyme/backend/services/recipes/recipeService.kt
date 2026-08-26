@@ -379,7 +379,11 @@ class RecipeService(
      * @param orderByLikes see [RecipeRepository.selectRecipesWithFilters]
      * @return matching recipes, capped at 100, as (id, name) pairs
      */
-    fun searchRecipes(q: String? = null, userId: UUID? = null, orderByLikes: Boolean = false): List<Pair<UUID, String>> =
+    fun searchRecipes(
+        q: String? = null,
+        userId: UUID? = null,
+        orderByLikes: Boolean = false
+    ): List<Pair<UUID, String>> =
 
         recipeRepository.selectRecipesWithFilters(q, userId, orderByLikes)
 
