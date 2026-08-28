@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import rosemary_and_thyme.backend.models.auth.LoginRequest
+import rosemary_and_thyme.backend.models.auth.PasswordResetConfirmRequest
+import rosemary_and_thyme.backend.models.auth.PasswordResetRequestRequest
 import rosemary_and_thyme.backend.models.auth.RegisterRequest
 import rosemary_and_thyme.backend.models.auth.ResendVerificationRequest
 import rosemary_and_thyme.backend.models.auth.VerifyEmailRequest
@@ -23,7 +25,10 @@ import rosemary_and_thyme.backend.services.auth.sanitizeRedirectPath
  * Auth endpoints: register -> verify-email -> login -> logout, plus [startGoogleLogin]
  * (Google sign-in's callback is handled separately, by Spring Security's own
  * `oauth2Login()` machinery and [rosemary_and_thyme.backend.configurations.GoogleOidcSuccessHandler] -
- * neither goes through this controller).
+ * neither goes through this controller) and the parallel "forgot password" pair,
+ * [requestPasswordReset]/[confirmPasswordReset]. Changing your password while already
+ * logged in is a separate, session-authenticated endpoint instead -
+ * `PUT /user/password`, on [UserController].
  *
  * The session itself is a plain random token (see
  * [rosemary_and_thyme.backend.services.auth.SessionService]) carried by an
@@ -132,6 +137,38 @@ class AuthController(
             .build()
     }
 
+
+    /**
+     * Starts the "forgot password" flow by emailing a reset link. Always responds 200
+     * regardless of whether the email is registered, already verified, or belongs to a
+     * Google-only account - see [AuthService.requestPasswordReset] /
+     * [rosemary_and_thyme.backend.services.auth.PasswordResetService.requestReset].
+     *
+     * @param request the email to send a reset link to
+     * @return 200 OK with an empty body
+     */
+    @PostMapping("/password-reset/request")
+    fun requestPasswordReset(@RequestBody request: PasswordResetRequestRequest): ResponseEntity<Unit> {
+        authService.requestPasswordReset(request.email)
+        return ResponseEntity.ok().build()
+    }
+
+    /**
+     * Confirms a password reset from the token in the emailed link, and logs the user
+     * in immediately afterward with a fresh session (every other existing session for
+     * the account is revoked first - see [AuthService.resetPassword]).
+     *
+     * @param request the raw reset token plus the new password
+     * @return 200 OK with the new session cookie attached
+     */
+    @PostMapping("/password-reset/confirm")
+    fun confirmPasswordReset(@RequestBody request: PasswordResetConfirmRequest): ResponseEntity<Unit> {
+        val sessionToken = authService.resetPassword(request.token, request.newPassword)
+
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookies.session(sessionToken).toString())
+            .build()
+    }
 
     /**
      * Ends the current session. A missing/absent cookie is treated the same as a

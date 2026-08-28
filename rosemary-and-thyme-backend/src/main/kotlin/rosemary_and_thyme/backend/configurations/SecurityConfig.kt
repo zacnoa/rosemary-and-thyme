@@ -112,7 +112,7 @@ class SecurityConfig(
      *   `HttpSession`; auth state for each request comes entirely from
      *   [SessionAuthFilter] validating the `session_cookie` value against the DB, not
      *   from anything Spring Security stores server-side itself
-     * - public endpoints: login/register/verify-email(+resend)/google, `GET /recipe/{id}`,
+     * - public endpoints: login/register/verify-email(+resend)/google/password-reset(request+confirm), `GET /recipe/{id}`,
      *   and `GET /recipe/search` (`/auth/google` itself just sets a cookie before
      *   302-ing into the *other* chain's `/oauth2/authorization/google`;
      *   `RecipeController.searchRecipes` never returns anything but id/name pairs, no
@@ -143,7 +143,9 @@ class SecurityConfig(
                     "/auth/register",
                     "/auth/verify-email",
                     "/auth/verify-email/resend",
-                    "/auth/google"
+                    "/auth/google",
+                    "/auth/password-reset/request",
+                    "/auth/password-reset/confirm"
                 ).permitAll()
                 it.requestMatchers(HttpMethod.GET, "/recipe/{id}").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/recipe/search").permitAll()

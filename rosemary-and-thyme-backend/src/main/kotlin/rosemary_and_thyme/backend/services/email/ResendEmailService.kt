@@ -63,4 +63,38 @@ class ResendEmailService(
             .retrieve()
             .toBodilessEntity()
     }
+
+    /**
+     * Sends the "forgot password" email. Same structure/reasoning as
+     * [sendVerificationEmail] - the only caller is
+     * [rosemary_and_thyme.backend.services.auth.PasswordResetService], which builds
+     * [resetLink] and owns the workflow this is a step of. The 1-hour expiry note
+     * matches the token TTL enforced in
+     * [rosemary_and_thyme.backend.repositories.auth.PasswordResetRepository.selectValidToken]
+     * (shorter than the verification email's 24 hours - a reset link is normally used
+     * within minutes of being requested, and is more sensitive to leave valid long).
+     *
+     * @param to the recipient's email address
+     * @param resetLink the full, clickable reset URL (frontend origin +
+     * `/auth/reset-password` + the raw token as a query param)
+     */
+    fun sendPasswordResetEmail(to: String, resetLink: String) {
+        client.post()
+            .uri("/emails")
+            .body(
+                mapOf(
+                    "from" to fromAddress,
+                    "to" to listOf(to),
+                    "subject" to "Resetiraj lozinku - Rosemary & Thyme",
+                    "html" to """
+                        <p>Bok!</p>
+                        <p>Zatražio si promjenu lozinke. Klikni na link ispod da postaviš novu:</p>
+                        <p><a href="$resetLink">$resetLink</a></p>
+                        <p>Link vrijedi 1 sat. Ako nisi ti tražio ovaj email, slobodno ga ignoriraj - tvoja lozinka ostaje nepromijenjena.</p>
+                    """.trimIndent()
+                )
+            )
+            .retrieve()
+            .toBodilessEntity()
+    }
 }

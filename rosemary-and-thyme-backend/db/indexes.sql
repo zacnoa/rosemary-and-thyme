@@ -21,6 +21,17 @@ CREATE INDEX IF NOT EXISTS email_verification_tokens_user_id_idx
 CREATE INDEX IF NOT EXISTS oauth_identities_user_id_idx
     ON app_auth.oauth_identities(user_id);
 
+-- PasswordResetRepository looks up tokens by user_id when invalidating
+-- outstanding tokens on a fresh request, same reasoning as
+-- email_verification_tokens_user_id_idx above.
+CREATE INDEX IF NOT EXISTS password_reset_tokens_user_id_idx
+    ON app_auth.password_reset_tokens(user_id);
+
+-- AccountDeletionService.purgeExpiredAccounts filters on this column daily;
+-- partial index since almost every row has it null (not scheduled for deletion).
+CREATE INDEX IF NOT EXISTS users_deletion_requested_at_idx
+    ON app_auth.users(deletion_requested_at) WHERE deletion_requested_at IS NOT NULL;
+
 -- no extra index needed for hero_images.image_id -> images.id: image_id is
 -- already the primary key of hero_images
 

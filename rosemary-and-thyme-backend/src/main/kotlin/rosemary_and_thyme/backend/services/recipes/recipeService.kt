@@ -233,6 +233,21 @@ class RecipeService(
     }
 
     /**
+     * Deletes every recipe a user owns, Cloudinary images included - each one goes
+     * through the exact same [deleteRecipe] path a normal owner-initiated delete does,
+     * rather than a raw cascading DB delete, specifically so their Cloudinary images
+     * get cleaned up too. The only caller is
+     * [rosemary_and_thyme.backend.services.auth.AccountDeletionService.purgeExpiredAccounts],
+     * right before the account itself is hard-deleted.
+     *
+     * @param user the account being purged, also the owner checked by each [deleteRecipe] call
+     */
+    fun deleteAllRecipesForUser(user: UsersRecord) {
+        val recipeIds = recipeRepository.selectAllRecipeIds(user.id.dbNotNull("id"))
+        recipeIds.forEach { deleteRecipe(it, user) }
+    }
+
+    /**
      * Creates or updates a recipe together with its image files, keeping Cloudinary and
      * the database consistent with each other.
      *

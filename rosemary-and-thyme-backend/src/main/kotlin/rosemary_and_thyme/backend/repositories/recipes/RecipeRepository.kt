@@ -149,6 +149,24 @@ class RecipeRepository(val dsl: DSLContext) {
             .limit(100)
             .fetch{record -> Pair(record[RECIPES.ID].dbNotNull("id"), record[RECIPES.NAME].dbNotNull("name"))}
 
+    /**
+     * Every one of a user's recipe ids, with no 100-row cap - unlike
+     * [selectAllRecipes]/[selectRecipesWithFilters] (both capped for the "browse/
+     * search" endpoints they back), this backs
+     * [rosemary_and_thyme.backend.services.auth.AccountDeletionService.purgeExpiredAccounts],
+     * which needs to actually delete every recipe an account has, not just the first
+     * page of them.
+     *
+     * @param userId the owner whose recipe ids to fetch
+     * @return every recipe id owned by [userId]
+     */
+    fun selectAllRecipeIds(userId: UUID): List<UUID> =
+        dsl.select(RECIPES.ID)
+            .from(RECIPES)
+            .where(RECIPES.USER_ID.eq(userId))
+            .fetch(RECIPES.ID)
+            .filterNotNull()
+
 
     /**
      * Reconciles a recipe's ingredients against the client's submitted state (see

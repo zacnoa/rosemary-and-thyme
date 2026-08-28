@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import rosemary_and_thyme.backend.exceptions.EmailNotVerifiedException
 import rosemary_and_thyme.backend.exceptions.ForbiddenException
+import rosemary_and_thyme.backend.exceptions.GoogleAccountException
 import rosemary_and_thyme.backend.exceptions.InvalidTokenException
 import rosemary_and_thyme.backend.exceptions.RecipeValidationException
 import rosemary_and_thyme.backend.exceptions.SessionException
@@ -98,6 +99,23 @@ class GlobalExceptionHandler {
         ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.message)
             .apply {
                 title = "Email not verified"
+                instance = URI.create(request.requestURI)
+            }
+
+    /**
+     * A password login (or change-password attempt) against an account that has no
+     * password to check - a Google-only account. 422 rather than 401/403 specifically
+     * so the frontend can tell this apart from "wrong password" and react differently
+     * (`routes/auth/login.tsx` redirects into the Google sign-in flow instead of
+     * showing an error) - see [GoogleAccountException]'s own KDoc.
+     * @return 422 problem-detail
+     */
+    @ExceptionHandler(GoogleAccountException::class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    fun handleGoogleAccount(e: GoogleAccountException, request: HttpServletRequest): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.message)
+            .apply {
+                title = "Google account"
                 instance = URI.create(request.requestURI)
             }
 

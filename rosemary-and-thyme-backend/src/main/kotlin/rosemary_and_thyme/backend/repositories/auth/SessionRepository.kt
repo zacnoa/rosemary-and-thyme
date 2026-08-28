@@ -57,4 +57,18 @@ class SessionRepository(val dsl: DSLContext) {
             .execute()
     }
 
+    /**
+     * Revokes every not-already-revoked session belonging to a user in one statement -
+     * used after a password change/reset (see
+     * [rosemary_and_thyme.backend.services.auth.SessionService.revokeAllSessions]) so a
+     * stolen or shared session elsewhere can't outlive the credential that granted it.
+     */
+    fun updateAllSessionsRevokedByUserId(userId: UUID) {
+        dsl.update(SESSIONS)
+            .set(SESSIONS.REVOKED, true)
+            .where(SESSIONS.USER_ID.eq(userId))
+            .and(SESSIONS.REVOKED.eq(false))
+            .execute()
+    }
+
 }

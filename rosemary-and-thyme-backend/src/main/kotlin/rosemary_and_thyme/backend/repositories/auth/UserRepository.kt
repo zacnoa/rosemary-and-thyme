@@ -7,6 +7,8 @@ import rosemary_and_thyme.backend.exceptions.UserAlreadyExistsException
 import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.references.USERS
 import java.sql.SQLException
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 @Repository
@@ -93,6 +95,56 @@ class UserRepository(val dsl: DSLContext) {
     fun updateEmailVerified(userId: UUID) {
         dsl.update(USERS)
             .set(USERS.EMAIL_VERIFIED, true)
+            .where(USERS.ID.eq(userId))
+            .execute()
+    }
+
+    /** Overwrites a user's stored password hash - used by both the authenticated change-password flow and the emailed reset-token flow. @param passwordHash the new, already-hashed (BCrypt) password */
+    fun updatePassword(userId: UUID, passwordHash: String) {
+        dsl.update(USERS)
+            .set(USERS.PASSWORD, passwordHash)
+            .where(USERS.ID.eq(userId))
+            .execute()
+    }
+
+    /** Marks a user's account for deletion 30 days from now (see [UsersRecord.deletionRequestedAt]'s column comment in db/schema.sql). */
+    fun updateDeletionRequestedAt(userId: UUID) {
+        dsl.update(USERS)
+            .set(USERS.DELETION_REQUESTED_AT, OffsetDateTime.now(ZoneOffset.UTC))
+            .where(USERS.ID.eq(userId))
+            .execute()
+    }
+
+    /** Cancels a pending deletion request (the grace-period "undo"). No-op if none was pending. */
+    fun clearDeletionRequestedAt(userId: UUID) {
+        dsl.update(USERS)
+            .setNull(USERS.DELETION_REQUESTED_AT)
+            .where(USERS.ID.eq(userId))
+            .execute()
+    }
+
+    /**
+     * @param cutoff accounts whose `deletion_requested_at` is older than this are due
+     * @return every account whose grace period has expired - see
+     * [rosemary_and_thyme.backend.services.auth.AccountDeletionService.purgeExpiredAccounts],
+     * the only caller
+     */
+    fun selectUsersPendingHardDelete(cutoff: OffsetDateTime): List<UsersRecord> =
+        dsl.selectFrom(USERS)
+            .where(USERS.DELETION_REQUESTED_AT.isNotNull)
+            .and(USERS.DELETION_REQUESTED_AT.lt(cutoff))
+            .fetch()
+
+    /**
+     * Hard-deletes a user row. `ON DELETE CASCADE` takes every session, oauth
+     * identity, and email-verification/password-reset token with it - recipes are
+     * expected to already be gone by this point (see
+     * [rosemary_and_thyme.backend.services.auth.AccountDeletionService.purgeExpiredAccounts],
+     * which deletes them one by one first so their Cloudinary images are cleaned up
+     * too, something a raw cascade here can't do).
+     */
+    fun deleteUserById(userId: UUID) {
+        dsl.deleteFrom(USERS)
             .where(USERS.ID.eq(userId))
             .execute()
     }

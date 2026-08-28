@@ -135,5 +135,20 @@ class SessionService(
         sessionRepository.updateSessionRevoked(session.id.dbNotNull("id"))
     }
 
+    /**
+     * Revokes every session a user has, on any device - called after a password
+     * change/reset (see [rosemary_and_thyme.backend.services.auth.AuthService.changePassword]/
+     * [rosemary_and_thyme.backend.services.auth.AuthService.resetPassword]) so the old
+     * credential can't keep an existing session alive elsewhere. The caller is
+     * expected to immediately issue a fresh session (via [createSession]) for the
+     * request that triggered this, since that request's own session cookie is
+     * revoked along with everything else.
+     *
+     * @param userId the user whose sessions should all be revoked
+     */
+    fun revokeAllSessions(userId: UUID) {
+        sessionRepository.updateAllSessionsRevokedByUserId(userId)
+    }
+
 
 }

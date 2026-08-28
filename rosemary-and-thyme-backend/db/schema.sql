@@ -46,6 +46,13 @@ CREATE TABLE IF NOT EXISTS app_auth.users
     username character varying(100) COLLATE pg_catalog."default" NOT NULL,
     email character varying(100) COLLATE pg_catalog."default",
     email_verified boolean NOT NULL DEFAULT false,
+    -- set when the user requests account deletion (UserService.requestAccountDeletion),
+    -- cleared if they cancel before the grace period ends (UserService.cancelAccountDeletion).
+    -- Null means "not scheduled for deletion". A daily job
+    -- (AccountDeletionService.purgeExpiredAccounts) hard-deletes any account whose
+    -- value here is more than 30 days in the past - see that class for why this is a
+    -- flag-on-the-row rather than a separate archive table.
+    deletion_requested_at timestamp with time zone,
     CONSTRAINT users_pkey PRIMARY KEY (id),
     CONSTRAINT users_email_key UNIQUE (email)
 );
@@ -81,6 +88,21 @@ CREATE TABLE IF NOT EXISTS app_auth.email_verification_tokens
     used_at timestamp with time zone,
     CONSTRAINT email_verification_tokens_pkey PRIMARY KEY (id),
     CONSTRAINT email_verification_tokens_hash_key UNIQUE (token_hash)
+);
+
+-- Same shape and purpose as app_auth.email_verification_tokens, just for the
+-- "forgot password" flow instead of registration - see PasswordResetService,
+-- which mirrors EmailVerificationService's workflow against this table.
+CREATE TABLE IF NOT EXISTS app_auth.password_reset_tokens
+(
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    token_hash character varying(64) COLLATE pg_catalog."default" NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    expires_at timestamp with time zone NOT NULL DEFAULT (now() + INTERVAL '1' HOUR),
+    used_at timestamp with time zone,
+    CONSTRAINT password_reset_tokens_pkey PRIMARY KEY (id),
+    CONSTRAINT password_reset_tokens_hash_key UNIQUE (token_hash)
 );
 
 CREATE TABLE IF NOT EXISTS public.hero_images
@@ -181,6 +203,12 @@ ALTER TABLE IF EXISTS app_auth.email_verification_tokens
 
 ALTER TABLE IF EXISTS app_auth.oauth_identities
     ADD CONSTRAINT oauth_identities_user_id_fkey FOREIGN KEY (user_id)
+    REFERENCES app_auth.users (id)
+    ON UPDATE NO ACTION
+    ON DELETE CASCADE;
+
+ALTER TABLE IF EXISTS app_auth.password_reset_tokens
+    ADD CONSTRAINT password_reset_tokens_user_id_fkey FOREIGN KEY (user_id)
     REFERENCES app_auth.users (id)
     ON UPDATE NO ACTION
     ON DELETE CASCADE;
