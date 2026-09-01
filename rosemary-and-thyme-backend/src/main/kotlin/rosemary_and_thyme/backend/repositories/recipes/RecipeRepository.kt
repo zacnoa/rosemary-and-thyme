@@ -2,6 +2,7 @@ package rosemary_and_thyme.backend.repositories.recipes
 
 import org.jooq.Condition
 import org.jooq.DSLContext
+import org.jooq.Field
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.springframework.stereotype.Repository
@@ -18,8 +19,10 @@ import rosemary_and_thyme.backend.models.recipes.IngredientDTO
 import rosemary_and_thyme.backend.models.recipes.InstructionDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeFeedDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedPage
 import rosemary_and_thyme.backend.models.recipes.RecipeImageDTO
 import rosemary_and_thyme.backend.repositories.dbNotNull
+import java.time.OffsetDateTime
 import java.util.*
 import kotlin.collections.partition
 
@@ -36,6 +39,11 @@ import kotlin.collections.partition
 
 @Repository
 class RecipeRepository(val dsl: DSLContext) {
+
+    companion object {
+        /** Page size every cursor-paginated feed query below defaults to when a caller doesn't override it. */
+        private const val DEFAULT_PAGE_SIZE = 20
+    }
 
     /**
      * Reconciles a client-submitted "desired state" (items + the order they should
@@ -108,6 +116,11 @@ class RecipeRepository(val dsl: DSLContext) {
                 .set(RECIPES.DIFFICULTY, dto.difficulty)
                 .set(RECIPES.PORTIONS, dto.portions)
                 .set(RECIPES.SIDE_NOTES, dto.sideNotes)
+                // dto.isPrivate is whatever this recipe was last fetched with - the
+                // editor never exposes a control for it, so a plain save just carries
+                // it straight through unchanged; only updatePrivate() below actually
+                // changes it.
+                .set(RECIPES.IS_PRIVATE, dto.isPrivate)
                 .where(RECIPES.ID.eq(dto.id))
                 .execute()
             existingId
@@ -130,10 +143,27 @@ class RecipeRepository(val dsl: DSLContext) {
                 .set(RECIPES.PORTIONS, dto.portions)
                 .set(RECIPES.SIDE_NOTES, dto.sideNotes)
                 .set(RECIPES.LIKES, 0)
+                .set(RECIPES.IS_PRIVATE, dto.isPrivate)
                 .returningResult(RECIPES.ID)
                 .fetchOne()
                 ?.get(RECIPES.ID) ?: throw IllegalStateException("Failed to insert recipe")
         }
+    }
+
+    /**
+     * Flips a recipe's [rosemary_and_thyme.backend.models.recipes.RecipeDTO.isPrivate]
+     * flag - the only thing `PATCH /recipe/{id}/private` touches, deliberately not
+     * routed through [upsertRecipeBase] since the dashboard toggle has no reason to
+     * resubmit the recipe's entire other state to change just this one column.
+     *
+     * @param recipeId the recipe to update
+     * @param isPrivate the new value
+     */
+    fun updatePrivate(recipeId: UUID, isPrivate: Boolean) {
+        dsl.update(RECIPES)
+            .set(RECIPES.IS_PRIVATE, isPrivate)
+            .where(RECIPES.ID.eq(recipeId))
+            .execute()
     }
 
     /**
@@ -598,11 +628,18 @@ class RecipeRepository(val dsl: DSLContext) {
      * operator (via `pg_trgm`) rather than an exact/prefix match, so typos and partial
      * words still find results
      * @param userId optional owner filter
+     * @param excludePrivate when `true`, adds `is_private = false` - used by the
+     * public/global search paths ([rosemary_and_thyme.backend.controllers.RecipeController.searchRecipes])
+     * so a private recipe never surfaces there, regardless of whether [userId] is also
+     * given; the auth-gated "my own recipes" paths
+     * ([rosemary_and_thyme.backend.controllers.UserController.searchOwnRecipes]/`searchUserFeed`)
+     * leave this `false` so the owner still sees their own private recipes
      */
-    private fun searchConditions(q: String?, userId: UUID?): List<Condition> {
+    private fun searchConditions(q: String?, userId: UUID?, excludePrivate: Boolean = false): List<Condition> {
         val conditions = mutableListOf<Condition>()
         q?.let { conditions += DSL.condition("{0} % {1}", RECIPES.NAME, it) }
         userId?.let { conditions += RECIPES.USER_ID.eq(it) }
+        if (excludePrivate) conditions += RECIPES.IS_PRIVATE.eq(false)
         return conditions
     }
 
@@ -633,6 +670,7 @@ class RecipeRepository(val dsl: DSLContext) {
      * order suits "my own handful of recipes" better than popularity does). Applies
      * whether or not [q] is given - [q] still narrows by name via the `%` condition
      * either way, only the *order* of the (possibly narrowed) results changes.
+     * @param excludePrivate see [searchConditions]
      * @return up to 100 matching recipes as (id, name) pairs - the lightweight shape
      * needed for a quick name lookup; [selectRecipeFeed] is the equivalent for a full
      * feed card
@@ -640,11 +678,12 @@ class RecipeRepository(val dsl: DSLContext) {
     fun selectRecipesWithFilters(
         q: String? = null,
         userId: UUID? = null,
-        orderByLikes: Boolean = false
+        orderByLikes: Boolean = false,
+        excludePrivate: Boolean = false
     ): List<Pair<UUID, String>> =
         dsl.select(RECIPES.ID, RECIPES.NAME)
             .from(RECIPES)
-            .where(searchConditions(q, userId))
+            .where(searchConditions(q, userId, excludePrivate))
             .orderBy(searchOrder(q, orderByLikes))
             .limit(100)
             .fetch { Pair(it[RECIPES.ID].dbNotNull("id"), it[RECIPES.NAME].dbNotNull("name")) }
@@ -666,25 +705,78 @@ class RecipeRepository(val dsl: DSLContext) {
      * [rosemary_and_thyme.backend.services.recipes.RecipeService.searchRecipeFeed],
      * the only caller, which merges the two).
      *
+     * Cursor/keyset-paginated (see [RecipeCursor]), not a plain `OFFSET`: every order
+     * this can be sorted by (like count, name, or trigram similarity) can change for
+     * rows *outside* the current page while the caller is still scrolling through it
+     * (someone else likes a recipe, an owner renames one) - `OFFSET N` would then
+     * skip or repeat a row at the page boundary, where a keyset condition on
+     * `(sortKey, id)` can't. The `id` tiebreak is what makes that condition (and the
+     * matching `ORDER BY`) deterministic even when two rows tie on the primary sort
+     * key (e.g. two recipes with the same like count).
+     *
      * @param q optional name filter, see [selectRecipesWithFilters]
      * @param userId optional owner filter
      * @param orderByLikes see [selectRecipesWithFilters]
-     * @return up to 100 matching recipes as feed cards, hero image not yet resolved
+     * @param excludePrivate see [searchConditions]
+     * @param cursor an earlier call's [RecipeFeedPage.nextCursor], or `null` for the
+     * first page
+     * @param pageSize how many recipes to return; capped by callers, not validated here
+     * @return up to [pageSize] matching recipes as feed cards (hero image not yet
+     * resolved) plus the cursor for the page after this one
      */
     fun selectRecipeFeed(
         q: String? = null,
         userId: UUID? = null,
-        orderByLikes: Boolean = false
-    ): List<RecipeFeedDTO> =
-        dsl.select(
+        orderByLikes: Boolean = false,
+        excludePrivate: Boolean = false,
+        cursor: String? = null,
+        pageSize: Int = DEFAULT_PAGE_SIZE
+    ): RecipeFeedPage {
+        val conditions = searchConditions(q, userId, excludePrivate).toMutableList()
+
+        // The raw sort-key expression - reused (not the aliased sortKeyColumn below)
+        // in both ORDER BY and the cursor condition, since Postgres can't reference a
+        // SELECT-list alias from WHERE. RECIPES.ID is always the tiebreak, appended
+        // to both, so ties on the primary key (e.g. two recipes with equal likes)
+        // still sort/paginate deterministically.
+        val ascending = !orderByLikes && q == null
+        val sortKey: Field<*> = when {
+            orderByLikes -> RECIPES.LIKES
+            q != null -> nameSimilarity(q)
+            else -> RECIPES.NAME
+        }
+        val sortKeyColumn = sortKey.`as`("sort_key")
+
+        if (cursor != null) {
+            val (sortValue, cursorId) = RecipeCursor.decode(cursor)
+            conditions += when {
+                orderByLikes -> DSL.row(RECIPES.LIKES, RECIPES.ID).lt(DSL.row(sortValue.toLong(), cursorId))
+                q != null -> DSL.row(nameSimilarity(q), RECIPES.ID).lt(DSL.row(sortValue.toDouble(), cursorId))
+                else -> DSL.row(RECIPES.NAME, RECIPES.ID).gt(DSL.row(sortValue, cursorId))
+            }
+        }
+
+        val rows = dsl.select(
             RECIPES.ID, RECIPES.NAME, RECIPES.DESCRIPTION, RECIPES.LIKES,
-            RECIPES.USER_NAME, RECIPES.CREATED_DATE
+            RECIPES.USER_NAME, RECIPES.CREATED_DATE, RECIPES.IS_PRIVATE, sortKeyColumn
         )
             .from(RECIPES)
-            .where(searchConditions(q, userId))
-            .orderBy(searchOrder(q, orderByLikes))
-            .limit(100)
-            .fetch {
+            .where(conditions)
+            .orderBy(if (ascending) sortKey.asc() else sortKey.desc(), if (ascending) RECIPES.ID.asc() else RECIPES.ID.desc())
+            // pageSize + 1: the extra row (if it comes back) is never returned to the
+            // caller, only its presence is - that's how hasMore/nextCursor below is
+            // known without a separate COUNT(*) query.
+            .limit(pageSize + 1)
+            .fetch()
+
+        val page = rows.take(pageSize)
+        val nextCursor = if (rows.size > pageSize) {
+            val last = page.last()
+            RecipeCursor.encode(last[sortKeyColumn].dbNotNull("sort_key").toString(), last[RECIPES.ID].dbNotNull("id"))
+        } else null
+
+        return RecipeFeedPage(
+            items = page.map {
                 RecipeFeedDTO(
                     id = it[RECIPES.ID].dbNotNull("id"),
                     name = it[RECIPES.NAME].dbNotNull("name"),
@@ -692,9 +784,89 @@ class RecipeRepository(val dsl: DSLContext) {
                     likes = it[RECIPES.LIKES].dbNotNull("likes"),
                     userName = it[RECIPES.USER_NAME].dbNotNull("user_name"),
                     createDate = it[RECIPES.CREATED_DATE].dbNotNull("created_date"),
-                    heroImageUrl = null
+                    heroImageUrl = null,
+                    isPrivate = it[RECIPES.IS_PRIVATE].dbNotNull("is_private")
                 )
-            }
+            },
+            nextCursor = nextCursor
+        )
+    }
+
+    /**
+     * Every recipe [userId] has liked, most recently liked first - backs the
+     * dashboard's "Liked Recipes" section
+     * ([rosemary_and_thyme.backend.controllers.UserController.searchLikedRecipes]).
+     * Unlike [selectRecipeFeed]/[selectRecipesWithFilters] this has no name filter
+     * (the liked section has no search box) and is never subject to
+     * [excludePrivate]-style filtering - a recipe you already liked while it was
+     * public stays listed here even if its owner later marks it private (only
+     * `RecipeService.likeRecipe`/`unlikeRecipe` ever touch `recipe_likes`; a recipe
+     * becoming private never does). Note this listing alone doesn't let you open a
+     * now-private recipe you'd liked - `GET /recipe/{id}` still 404s you out of it
+     * once its owner flips it private (see `RecipeService.findRecipeById`), same as
+     * for anyone else who isn't its owner.
+     *
+     * Cursor/keyset-paginated on `(recipe_likes.created_at, recipes.id)` - see
+     * [selectRecipeFeed]'s doc for why (a plain `OFFSET` would skip/repeat a row if
+     * the caller likes/unlikes something else while still scrolling this list).
+     *
+     * @param userId the user whose likes to list
+     * @param cursor an earlier call's [RecipeFeedPage.nextCursor], or `null` for the first page
+     * @param pageSize how many recipes to return; capped by callers, not validated here
+     * @return up to [pageSize] liked recipes as feed cards, most recently liked
+     * first, hero image not yet resolved (see
+     * [rosemary_and_thyme.backend.services.recipes.RecipeService.likedRecipeFeed],
+     * which resolves it the same way [rosemary_and_thyme.backend.services.recipes.RecipeService.searchRecipeFeed] does),
+     * plus the cursor for the page after this one
+     */
+    fun selectLikedRecipeFeed(
+        userId: UUID,
+        cursor: String? = null,
+        pageSize: Int = DEFAULT_PAGE_SIZE
+    ): RecipeFeedPage {
+        val conditions = mutableListOf(RECIPE_LIKES.USER_ID.eq(userId))
+
+        if (cursor != null) {
+            val (sortValue, cursorId) = RecipeCursor.decode(cursor)
+            conditions += DSL.row(RECIPE_LIKES.CREATED_AT, RECIPES.ID)
+                .lt(DSL.row(OffsetDateTime.parse(sortValue), cursorId))
+        }
+
+        val sortKeyColumn = RECIPE_LIKES.CREATED_AT.`as`("sort_key")
+
+        val rows = dsl.select(
+            RECIPES.ID, RECIPES.NAME, RECIPES.DESCRIPTION, RECIPES.LIKES,
+            RECIPES.USER_NAME, RECIPES.CREATED_DATE, RECIPES.IS_PRIVATE, sortKeyColumn
+        )
+            .from(RECIPE_LIKES)
+            .join(RECIPES).on(RECIPE_LIKES.RECIPE_ID.eq(RECIPES.ID))
+            .where(conditions)
+            .orderBy(RECIPE_LIKES.CREATED_AT.desc(), RECIPES.ID.desc())
+            .limit(pageSize + 1)
+            .fetch()
+
+        val page = rows.take(pageSize)
+        val nextCursor = if (rows.size > pageSize) {
+            val last = page.last()
+            RecipeCursor.encode(last[sortKeyColumn].dbNotNull("sort_key").toString(), last[RECIPES.ID].dbNotNull("id"))
+        } else null
+
+        return RecipeFeedPage(
+            items = page.map {
+                RecipeFeedDTO(
+                    id = it[RECIPES.ID].dbNotNull("id"),
+                    name = it[RECIPES.NAME].dbNotNull("name"),
+                    description = it[RECIPES.DESCRIPTION].dbNotNull("description"),
+                    likes = it[RECIPES.LIKES].dbNotNull("likes"),
+                    userName = it[RECIPES.USER_NAME].dbNotNull("user_name"),
+                    createDate = it[RECIPES.CREATED_DATE].dbNotNull("created_date"),
+                    heroImageUrl = null,
+                    isPrivate = it[RECIPES.IS_PRIVATE].dbNotNull("is_private")
+                )
+            },
+            nextCursor = nextCursor
+        )
+    }
 
     /**
      * First (lowest-index) hero image url for each of [recipeIds], one row per recipe

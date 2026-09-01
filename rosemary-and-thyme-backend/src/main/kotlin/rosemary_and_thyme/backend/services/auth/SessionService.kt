@@ -1,5 +1,7 @@
 package rosemary_and_thyme.backend.services.auth
 
+import org.slf4j.LoggerFactory
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import rosemary_and_thyme.backend.exceptions.SessionException
 import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
@@ -67,6 +69,7 @@ class SessionService(
     val sessionRepository: SessionRepository,
     val userRepository: UserRepository
 ) {
+    private val log = LoggerFactory.getLogger(SessionService::class.java)
 
     /**
      * Starts a new session for a user (called after a successful login, registration
@@ -150,5 +153,22 @@ class SessionService(
         sessionRepository.updateAllSessionsRevokedByUserId(userId)
     }
 
+    /**
+     * Runs once a day (03:30 server time, right after
+     * [AccountDeletionService.purgeExpiredAccounts]'s own 03:00 job so the two never
+     * contend for the same low-traffic window) and hard-deletes every session row that
+     * is revoked, expired, or both (see [SessionRepository.deleteInvalidSessions]).
+     * Purely a housekeeping job - a revoked or expired session already fails
+     * [validateSession] and authenticates nothing, so this changes no observable
+     * behavior; it only keeps `app_auth.sessions` from accumulating rows nothing will
+     * ever look up again (every login/verify/reset inserts a fresh one, and none of
+     * those flows ever delete the old ones themselves - only [revokeSession]/
+     * [revokeAllSessions] mark them revoked).
+     */
+    @Scheduled(cron = "0 30 3 * * *")
+    fun purgeInvalidSessions() {
+        val deleted = sessionRepository.deleteInvalidSessions()
+        log.info("Purged {} invalid session(s)", deleted)
+    }
 
 }

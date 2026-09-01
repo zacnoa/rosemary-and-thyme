@@ -2,12 +2,14 @@ package rosemary_and_thyme.backend.controllers
 
 import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.multipart.MaxUploadSizeExceededException
 import rosemary_and_thyme.backend.exceptions.EmailNotVerifiedException
 import rosemary_and_thyme.backend.exceptions.ForbiddenException
 import rosemary_and_thyme.backend.exceptions.GoogleAccountException
@@ -32,7 +34,14 @@ import java.net.URI
  * response directly on error.
  */
 @RestControllerAdvice
-class GlobalExceptionHandler {
+class GlobalExceptionHandler(
+    // Read straight from the same properties application.yaml's
+    // spring.servlet.multipart.max-file-size/max-request-size set, purely so
+    // handleMaxUploadSize's message can never drift out of sync with the actual
+    // configured limits the way a hardcoded "8MB"/"30MB" string would.
+    @Value($$"${spring.servlet.multipart.max-file-size}") private val maxFileSize: String,
+    @Value($$"${spring.servlet.multipart.max-request-size}") private val maxRequestSize: String
+) {
 
     private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 
@@ -173,6 +182,27 @@ class GlobalExceptionHandler {
                 title = "Bad request"
                 instance = URI.create(request.requestURI)
             }
+
+    /**
+     * A recipe image upload (or the whole `PUT /recipe/{id}` multipart request)
+     * exceeded the caps configured in `application.yaml`
+     * (`spring.servlet.multipart.max-file-size`/`max-request-size`). Thrown by
+     * Spring's multipart resolver before [RecipeController.saveRecipe] ever runs, so
+     * this has no access to which specific limit was breached - the message just
+     * states both, so the caller knows what to shrink either way.
+     *
+     * @return 413 problem-detail
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException::class)
+    @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+    fun handleMaxUploadSize(e: MaxUploadSizeExceededException, request: HttpServletRequest): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(
+            HttpStatus.PAYLOAD_TOO_LARGE,
+            "Uploaded file(s) exceed the maximum allowed size of $maxFileSize per image ($maxRequestSize total per recipe)."
+        ).apply {
+            title = "Upload too large"
+            instance = URI.create(request.requestURI)
+        }
 
     /**
      * Catch-all for anything not handled above. Logs the full exception server-side

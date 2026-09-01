@@ -15,6 +15,15 @@ spring:
             client-id: ${GOOGLE_CLIENT_ID}
             client-secret: ${GOOGLE_CLIENT_SECRET}
             scope: openid,email,profile
+  servlet:
+    multipart:
+      # Caps recipe image uploads (PUT /recipe/{id}) - per-file cap keeps a single
+      # oversized photo from being accepted at all, the request cap accounts for
+      # several images (hero + steps) riding in one multipart request together.
+      # A breach throws MaxUploadSizeExceededException, handled in
+      # GlobalExceptionHandler with a message stating both limits.
+      max-file-size: 8MB
+      max-request-size: 30MB
 
 cloudinary:
   cloud-name: ${CLOUDINARY_NAME}

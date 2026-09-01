@@ -15,6 +15,7 @@ import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRec
 import rosemary_and_thyme.backend.models.auth.ChangePasswordRequest
 import rosemary_and_thyme.backend.models.auth.UserDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeFeedDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedPage
 import rosemary_and_thyme.backend.repositories.dbNotNull
 import rosemary_and_thyme.backend.services.auth.AccountDeletionService
 import rosemary_and_thyme.backend.services.auth.AuthService
@@ -105,7 +106,9 @@ class UserController(
 
     /**
      * Searches recipes owned by the authenticated caller only - the counterpart of
-     * [RecipeController.searchRecipes], which searches across all users.
+     * [RecipeController.searchRecipes], which searches across all users. Unlike that
+     * public endpoint, `excludePrivate` stays `false` here - a caller searching their
+     * own recipes must still find the private ones.
      *
      * @param q optional fuzzy name filter (see [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.selectRecipesWithFilters])
      * @param user the authenticated caller, whose recipes are searched
@@ -116,7 +119,7 @@ class UserController(
         @RequestParam(required = false) q: String?,
         @AuthenticationPrincipal user: UsersRecord
     ): ResponseEntity<List<Pair<UUID, String>>> =
-        ResponseEntity.ok(recipeService.searchRecipes(q = q, userId = user.id))
+        ResponseEntity.ok(recipeService.searchRecipes(q = q, userId = user.id, excludePrivate = false))
 
     /**
      * The dashboard's recipe list - the authenticated caller's own recipes, as full
@@ -127,15 +130,41 @@ class UserController(
      * Alphabetical/relevance order (not by likes) - the dashboard is "manage my own
      * recipes", not a popularity browse.
      *
+     * Cursor-paginated (see [RecipeFeedPage]).
+     *
      * @param q optional fuzzy name filter
+     * @param cursor `null` for the first page
      * @param user the authenticated caller, whose recipes are searched
-     * @return 200 OK with matching recipes as feed cards
+     * @return 200 OK with a page of matching recipes as feed cards
      */
     @GetMapping("/recipes/feed")
     fun searchUserFeed(
         @RequestParam(required = false) q: String?,
+        @RequestParam(required = false) cursor: String?,
         @AuthenticationPrincipal user: UsersRecord
-    ): ResponseEntity<List<RecipeFeedDTO>> =
-        ResponseEntity.ok(recipeService.searchRecipeFeed(q = q, userId = user.id, orderByLikes = false))
+    ): ResponseEntity<RecipeFeedPage> =
+        ResponseEntity.ok(
+            recipeService.searchRecipeFeed(q = q, userId = user.id, orderByLikes = false, excludePrivate = false, cursor = cursor)
+        )
+
+    /**
+     * The dashboard's "Liked Recipes" section - every recipe the authenticated caller
+     * has liked, most recently liked first, as full feed cards (see [RecipeFeedDTO]).
+     * Counterpart of [searchUserFeed] (the caller's *own* recipes) - together they back
+     * the dashboard's two scrollable sections. See
+     * [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.selectLikedRecipeFeed]
+     * for why this has no name filter and isn't affected by a recipe becoming private
+     * after the caller liked it. Cursor-paginated same as [searchUserFeed].
+     *
+     * @param cursor `null` for the first page
+     * @param user the authenticated caller, whose likes are listed
+     * @return 200 OK with a page of liked recipes as feed cards, most recently liked first
+     */
+    @GetMapping("/recipes/liked")
+    fun searchLikedRecipes(
+        @RequestParam(required = false) cursor: String?,
+        @AuthenticationPrincipal user: UsersRecord
+    ): ResponseEntity<RecipeFeedPage> =
+        ResponseEntity.ok(recipeService.likedRecipeFeed(user.id.dbNotNull("id"), cursor))
 
 }

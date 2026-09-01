@@ -71,4 +71,24 @@ class SessionRepository(val dsl: DSLContext) {
             .execute()
     }
 
+    /**
+     * Hard-deletes every session row that can no longer authenticate anything - either
+     * revoked (logout, or a password change/reset via [updateAllSessionsRevokedByUserId])
+     * or past its `expires_at` - backing
+     * [rosemary_and_thyme.backend.services.auth.SessionService.purgeInvalidSessions]'s
+     * daily cleanup job. These rows are already permanently rejected by
+     * [rosemary_and_thyme.backend.services.auth.SessionService.validateSession], so
+     * deleting them changes no observable behavior; this purely keeps the table from
+     * growing unbounded with rows nothing will ever look up again (see
+     * `sessions_revoked_expires_at_idx` in db/indexes.sql for the index this query
+     * uses).
+     *
+     * @return how many rows were deleted, purely for logging
+     */
+    fun deleteInvalidSessions(): Int =
+        dsl.deleteFrom(SESSIONS)
+            .where(SESSIONS.REVOKED.eq(true))
+            .or(SESSIONS.EXPIRES_AT.lt(OffsetDateTime.now(ZoneOffset.UTC)))
+            .execute()
+
 }

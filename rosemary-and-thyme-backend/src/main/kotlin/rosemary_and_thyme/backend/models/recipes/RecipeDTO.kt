@@ -37,6 +37,13 @@ import java.util.UUID
  * @property ingredientsOrder ids of [ingredients], in the order they should be displayed
  * @property instructionsOrder ids of [instructions], in the order they should be displayed
  * @property heroImagesOrder ids of the hero images in [images], in the order they should be displayed
+ * @property isPrivate excludes this recipe from the global feed/search and blocks
+ * it from anyone but its owner (see [rosemary_and_thyme.backend.services.recipes.RecipeService.findRecipeById]/
+ * [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.searchConditions])
+ * when `true`. Toggled from the dashboard via `PATCH /recipe/{id}/private`
+ * ([rosemary_and_thyme.backend.controllers.RecipeController.setRecipePrivate]),
+ * never from the recipe editor itself - a full [saveRecipe][rosemary_and_thyme.backend.services.recipes.RecipeService.saveRecipe]
+ * just carries whatever value it was fetched with straight back through.
  */
 data class RecipeDTO(
     val id: UUID,
@@ -56,5 +63,6 @@ data class RecipeDTO(
     val instructions: Map<UUID, InstructionDTO>,
     val ingredientsOrder: List<UUID>,
     val instructionsOrder: List<UUID>,
-    val heroImagesOrder: List<UUID>
+    val heroImagesOrder: List<UUID>,
+    val isPrivate: Boolean = false
 )

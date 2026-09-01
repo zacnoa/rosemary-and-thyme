@@ -9,7 +9,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
@@ -21,6 +20,7 @@ import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.RecipesRec
 import rosemary_and_thyme.backend.models.recipes.LikeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeFeedDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedPage
 import rosemary_and_thyme.backend.repositories.dbNotNull
 import rosemary_and_thyme.backend.repositories.recipes.RecipeRepository
 import java.util.NoSuchElementException
@@ -99,11 +99,15 @@ class RecipeService(
      *
      * @param id the recipe's id
      * @param currentUserId the requesting caller's id, or `null` for an anonymous
-     * viewer - used only to resolve [RecipeDTO.liked]; when `null`, that lookup is
-     * skipped entirely (an anonymous caller can never have liked anything) rather
-     * than firing a query that would just resolve to `false`
+     * viewer - used both to resolve [RecipeDTO.liked] (skipped when `null`, since an
+     * anonymous caller can never have liked anything) and to enforce [RecipeDTO.isPrivate]:
+     * a private recipe is only ever handed back to its own owner, everyone else
+     * (including an anonymous caller) gets the same [NoSuchElementException] as a
+     * recipe that doesn't exist at all, so a private recipe's existence is never
+     * leaked to anyone but its owner
      * @return the assembled [RecipeDTO]
-     * @throws NoSuchElementException if no recipe exists with this id
+     * @throws NoSuchElementException if no recipe exists with this id, or it exists
+     * but is private and [currentUserId] isn't its owner
      */
     fun findRecipeById(id: UUID, currentUserId: UUID? = null): RecipeDTO = runBlocking {
 
@@ -125,6 +129,17 @@ class RecipeService(
          */
         val recipe =
             recipeDeferred.await() ?: throw NoSuchElementException("The recipe you are looking for does not exist")
+
+        // private recipes are invisible to everyone but their owner - same exception
+        // as "doesn't exist" so a private id can't be distinguished from a bogus one.
+        // .dbNotNull() (not `== true`) deliberately fails closed: is_private is NOT
+        // NULL in the schema, so this can never actually be null, but if it somehow
+        // were, this is a privacy gate - it should 500 loudly rather than silently
+        // treat an unreadable value as "public".
+        if (recipe.isPrivate.dbNotNull("isPrivate") && recipe.userId != currentUserId) {
+            throw NoSuchElementException("The recipe you are looking for does not exist")
+        }
+
         val ingredients = ingredientsDeferred.await()
         val instructions = instructionsDeferred.await()
         val heroImages = heroImagesDeferred.await()
@@ -147,25 +162,34 @@ class RecipeService(
     }
 
     /**
-     * Likes a recipe on [user]'s behalf. A recipe's own owner can never like it - see
-     * the class-level feature request this enforces: the frontend already never shows
-     * a like button on your own recipe (owners get RecipeEditor, not Blog - see
-     * routes/recipe/[id].tsx), but that's a UI convenience, not a security boundary,
-     * so it's re-checked here against a direct API call.
+     * Likes a recipe on [user]'s behalf. A recipe's own owner can never like it - the
+     * frontend already never shows a like button on your own recipe (owners get
+     * RecipeEditor, not Blog - see routes/recipe/[id].tsx), but that's a UI
+     * convenience, not a security boundary, so it's re-checked here against a direct
+     * API call.
      *
      * Idempotent: liking an already-liked recipe is a no-op (no double count, no
      * error) - see [RecipeRepository.insertLike].
      *
+     * Also unreachable for a private recipe you don't own - same [NoSuchElementException]
+     * as [findRecipeById] throws for one, since you can't legitimately have a like
+     * button for a recipe you were never able to load in the first place.
+     *
      * @param recipeId the recipe to like
      * @param user the authenticated caller
      * @return the caller's new like state and the recipe's up-to-date like count
-     * @throws NoSuchElementException if no recipe exists with this id
+     * @throws NoSuchElementException if no recipe exists with this id, or it's private and [user] isn't its owner
      * @throws ForbiddenException if [user] is the recipe's own owner
      */
     @Transactional
     fun likeRecipe(recipeId: UUID, user: UsersRecord): LikeStatusDTO {
         val recipe = recipeRepository.selectRecipeBase(recipeId)
             ?: throw NoSuchElementException("The recipe you are looking for does not exist")
+
+        // fails closed on an unreadable value - see findRecipeById's identical check
+        if (recipe.isPrivate.dbNotNull("isPrivate") && recipe.userId != user.id) {
+            throw NoSuchElementException("The recipe you are looking for does not exist")
+        }
 
         if (recipe.userId == user.id) {
             throw ForbiddenException("You cannot like your own recipe")
@@ -245,6 +269,31 @@ class RecipeService(
     fun deleteAllRecipesForUser(user: UsersRecord) {
         val recipeIds = recipeRepository.selectAllRecipeIds(user.id.dbNotNull("id"))
         recipeIds.forEach { deleteRecipe(it, user) }
+    }
+
+    /**
+     * Flips a recipe's private/public flag on [user]'s behalf - backs the dashboard's
+     * per-recipe toggle (`PATCH /recipe/{id}/private`). Deliberately its own endpoint
+     * rather than routed through the full multipart [saveRecipe]: the toggle lives in
+     * the dashboard's recipe list, which only ever has the lightweight [RecipeFeedDTO]
+     * for each card, not the full recipe (ingredients/instructions/images) [saveRecipe]
+     * would need resubmitted. Same ownership check as [deleteRecipe]/[saveRecipe].
+     *
+     * @param recipeId the recipe to update
+     * @param isPrivate the new value
+     * @param user the authenticated caller, checked as the recipe's owner
+     * @throws NoSuchElementException if no recipe exists with this id
+     * @throws ForbiddenException if [user] is not the recipe's owner
+     */
+    fun setRecipePrivate(recipeId: UUID, isPrivate: Boolean, user: UsersRecord) {
+        val recipe = recipeRepository.selectRecipeBase(recipeId)
+            ?: throw NoSuchElementException("The recipe you are looking for does not exist")
+
+        if (recipe.userId != user.id) {
+            throw ForbiddenException("You are not the owner of this recipe")
+        }
+
+        recipeRepository.updatePrivate(recipeId, isPrivate)
     }
 
     /**
@@ -392,15 +441,21 @@ class RecipeService(
      * @param q optional fuzzy name filter (see [RecipeRepository.selectRecipesWithFilters])
      * @param userId optional owner filter
      * @param orderByLikes see [RecipeRepository.selectRecipesWithFilters]
+     * @param excludePrivate see [RecipeRepository.searchConditions] - `true` for the
+     * public/global search ([rosemary_and_thyme.backend.controllers.RecipeController.searchRecipes]),
+     * `false` (default) for the auth-gated "my own recipes" search
+     * ([rosemary_and_thyme.backend.controllers.UserController.searchOwnRecipes]), which
+     * must still surface the caller's own private recipes
      * @return matching recipes, capped at 100, as (id, name) pairs
      */
     fun searchRecipes(
         q: String? = null,
         userId: UUID? = null,
-        orderByLikes: Boolean = false
+        orderByLikes: Boolean = false,
+        excludePrivate: Boolean = false
     ): List<Pair<UUID, String>> =
 
-        recipeRepository.selectRecipesWithFilters(q, userId, orderByLikes)
+        recipeRepository.selectRecipesWithFilters(q, userId, orderByLikes, excludePrivate)
 
     /**
      * Same filtering/ordering as [searchRecipes], but returns full feed cards (see
@@ -417,13 +472,38 @@ class RecipeService(
      * @param q optional fuzzy name filter, see [RecipeRepository.selectRecipeFeed]
      * @param userId optional owner filter
      * @param orderByLikes see [RecipeRepository.selectRecipesWithFilters]
-     * @return up to 100 matching recipes as feed cards, each with its first hero image
-     * (or `null` if it has none) resolved
+     * @param excludePrivate see [searchRecipes]
+     * @param cursor see [RecipeRepository.selectRecipeFeed]
+     * @return a page of matching recipes as feed cards, each with its first hero
+     * image (or `null` if it has none) resolved, plus the cursor for the next page
      */
-    fun searchRecipeFeed(q: String? = null, userId: UUID? = null, orderByLikes: Boolean = false): List<RecipeFeedDTO> {
-        val recipes = recipeRepository.selectRecipeFeed(q, userId, orderByLikes)
-        val heroImages = recipeRepository.selectFirstHeroImages(recipes.map { it.id })
-        return recipes.map { it.copy(heroImageUrl = heroImages[it.id]) }
+    fun searchRecipeFeed(
+        q: String? = null,
+        userId: UUID? = null,
+        orderByLikes: Boolean = false,
+        excludePrivate: Boolean = false,
+        cursor: String? = null
+    ): RecipeFeedPage {
+        val page = recipeRepository.selectRecipeFeed(q, userId, orderByLikes, excludePrivate, cursor)
+        val heroImages = recipeRepository.selectFirstHeroImages(page.items.map { it.id })
+        return page.copy(items = page.items.map { it.copy(heroImageUrl = heroImages[it.id]) })
+    }
+
+    /**
+     * The dashboard's "Liked Recipes" section: every recipe [userId] has liked, most
+     * recently liked first, as feed cards with hero images resolved the same way
+     * [searchRecipeFeed] does. No name filter and no [excludePrivate] concept - see
+     * [RecipeRepository.selectLikedRecipeFeed] for why.
+     *
+     * @param userId the user whose likes to list
+     * @param cursor see [RecipeRepository.selectLikedRecipeFeed]
+     * @return a page of liked recipes as feed cards, most recently liked first, plus
+     * the cursor for the next page
+     */
+    fun likedRecipeFeed(userId: UUID, cursor: String? = null): RecipeFeedPage {
+        val page = recipeRepository.selectLikedRecipeFeed(userId, cursor)
+        val heroImages = recipeRepository.selectFirstHeroImages(page.items.map { it.id })
+        return page.copy(items = page.items.map { it.copy(heroImageUrl = heroImages[it.id]) })
     }
 
 }

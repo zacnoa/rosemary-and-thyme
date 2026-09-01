@@ -6,9 +6,11 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.util.MultiValueMap
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
@@ -17,7 +19,8 @@ import org.springframework.web.multipart.MultipartFile
 import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.models.recipes.LikeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
-import rosemary_and_thyme.backend.models.recipes.RecipeFeedDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedPage
+import rosemary_and_thyme.backend.models.recipes.SetPrivateRequest
 import rosemary_and_thyme.backend.services.recipes.RecipeService
 import java.util.UUID
 
@@ -115,17 +118,29 @@ class RecipeController(private val recipeService: RecipeService) {
      * so a future "my recipes, shown the same way everyone else's are" dashboard view
      * can reuse it directly rather than needing a third route.
      *
-     * @param q optional name filter; when omitted, every recipe is eligible
-     * (still capped at 100, still ordered by likes)
+     * Always excludes private recipes (`excludePrivate = true`), regardless of whether
+     * [userId] is given - even "browse this one user's recipes" never surfaces one of
+     * their private ones here; the auth-gated dashboard equivalents
+     * ([UserController.searchOwnRecipes]/`searchUserFeed`) are what still show the
+     * caller their own private recipes.
+     *
+     * Cursor-paginated (see [RecipeFeedPage], `components/common/VirtualFeed.tsx` on
+     * the frontend) - [cursor] is always an earlier call's own [RecipeFeedPage.nextCursor],
+     * never constructed by the caller.
+     *
+     * @param q optional name filter; when omitted, every recipe is eligible, still
+     * ordered by likes
      * @param userId optional filter to only this user's recipes
-     * @return 200 OK with matching recipes, capped at 100, as feed cards, most-liked first
+     * @param cursor `null` for the first page
+     * @return 200 OK with a page of matching recipes as feed cards, most-liked first
      */
     @GetMapping("/search")
     fun searchRecipes(
         @RequestParam(required = false) q: String?,
-        @RequestParam(required = false) userId: UUID?
-    ): ResponseEntity<List<RecipeFeedDTO>> =
-        ResponseEntity.ok(recipeService.searchRecipeFeed(q, userId, orderByLikes = true))
+        @RequestParam(required = false) userId: UUID?,
+        @RequestParam(required = false) cursor: String?
+    ): ResponseEntity<RecipeFeedPage> =
+        ResponseEntity.ok(recipeService.searchRecipeFeed(q, userId, orderByLikes = true, excludePrivate = true, cursor = cursor))
 
     /**
      * Likes a recipe on the caller's behalf. Not in the `permitAll()` list in
@@ -179,6 +194,31 @@ class RecipeController(private val recipeService: RecipeService) {
     ): ResponseEntity<Void> {
         recipeService.deleteRecipe(id, user)
         return ResponseEntity.noContent().build()
+    }
+
+    /**
+     * Toggles a recipe's private/public flag on the caller's behalf - the dashboard's
+     * per-recipe toggle (see components/dashboard/DashboardRecipeCard.tsx on the
+     * frontend). A dedicated `PATCH` rather than routing through [saveRecipe]: the
+     * dashboard's recipe list only ever has the lightweight [RecipeFeedDTO] for each
+     * card, not the full recipe [saveRecipe]'s multipart body would need. Not in the
+     * `permitAll()` list in [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain],
+     * so an unauthenticated request is rejected before this method body ever runs.
+     * Ownership-checked in [RecipeService.setRecipePrivate].
+     *
+     * @param id the recipe to update
+     * @param request the new `isPrivate` value
+     * @param user the authenticated caller, checked as the recipe's owner
+     * @return 200 OK with an empty body
+     */
+    @PatchMapping("/{id}/private")
+    fun setRecipePrivate(
+        @PathVariable id: UUID,
+        @RequestBody request: SetPrivateRequest,
+        @AuthenticationPrincipal user: UsersRecord
+    ): ResponseEntity<Unit> {
+        recipeService.setRecipePrivate(id, request.isPrivate, user)
+        return ResponseEntity.ok().build()
     }
 
 }

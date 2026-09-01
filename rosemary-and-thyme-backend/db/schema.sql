@@ -165,6 +165,11 @@ CREATE TABLE IF NOT EXISTS public.recipes
     created_date date NOT NULL DEFAULT CURRENT_DATE,
     user_id uuid NOT NULL,
     user_name character varying(100) COLLATE pg_catalog."default" NOT NULL,
+    -- true excludes this recipe from the global feed/search (RecipeRepository.
+    -- searchConditions with excludePrivate=true) and blocks GET /recipe/{id} for
+    -- anyone but the owner (RecipeService.findRecipeById) - toggled from the
+    -- dashboard (PATCH /recipe/{id}/private), never from the recipe editor itself.
+    is_private boolean NOT NULL DEFAULT false,
     CONSTRAINT recipes_pkey PRIMARY KEY (id),
     CONSTRAINT recipes_difficulty_check CHECK (difficulty >= 1 AND difficulty <= 5)
 );

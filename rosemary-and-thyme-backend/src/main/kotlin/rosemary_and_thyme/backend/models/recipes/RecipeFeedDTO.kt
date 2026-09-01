@@ -19,6 +19,10 @@ import java.util.UUID
  * @property createDate the date the recipe was created
  * @property heroImageUrl the recipe's first (lowest-index) hero image url, or `null`
  * if it has no hero image at all - a feed card simply omits the image in that case
+ * @property isPrivate mirrors [RecipeDTO.isPrivate] - only ever `true` on a card
+ * returned from the dashboard's own-recipes feed (the global feed always excludes
+ * private recipes, see [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.searchConditions]),
+ * used there to render a "Private" badge next to the toggle
  */
 data class RecipeFeedDTO(
     val id: UUID,
@@ -27,5 +31,6 @@ data class RecipeFeedDTO(
     val likes: Long,
     val userName: String,
     val createDate: LocalDate,
-    val heroImageUrl: String?
+    val heroImageUrl: String?,
+    val isPrivate: Boolean
 )

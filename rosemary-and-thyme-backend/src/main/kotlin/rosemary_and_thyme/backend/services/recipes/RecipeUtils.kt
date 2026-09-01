@@ -112,7 +112,8 @@ object RecipeUtils {
              */
             ingredientsOrder = ingredients.mapNotNull { it.id },
             instructionsOrder = instructions.mapNotNull { it.id },
-            heroImagesOrder = heroImages.keys.map { it }
+            heroImagesOrder = heroImages.keys.map { it },
+            isPrivate = recipe.isPrivate.dbNotNull("isPrivate")
         )
     }
 }

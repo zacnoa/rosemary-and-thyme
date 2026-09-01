@@ -9,6 +9,13 @@
 CREATE INDEX IF NOT EXISTS sessions_user_id_idx
     ON app_auth.sessions(user_id);
 
+-- SessionCleanupService.purgeInvalidSessions runs `revoked = true OR expires_at <
+-- now()` daily; this covers both sides of that OR (a plain btree on the leading
+-- boolean column is enough to short-circuit the `revoked = true` rows, and its
+-- second column serves the `expires_at < now()` rows without a second index).
+CREATE INDEX IF NOT EXISTS sessions_revoked_expires_at_idx
+    ON app_auth.sessions(revoked, expires_at);
+
 -- EmailVerificationRepository looks up tokens by user_id when invalidating
 -- outstanding tokens on resend, and this FK column isn't auto-indexed.
 CREATE INDEX IF NOT EXISTS email_verification_tokens_user_id_idx
@@ -60,3 +67,25 @@ CREATE INDEX IF NOT EXISTS recipes_user_id_idx
 -- is a full sequential scan over recipes.
 CREATE INDEX IF NOT EXISTS recipes_name_trgm_idx
     ON public.recipes USING gin (name gin_trgm_ops);
+
+-- selectRecipeFeed()'s cursor-paginated `orderByLikes = true` path (the home
+-- page's global feed, most-liked first) both orders by and keyset-paginates on
+-- `(likes, id)` - see RecipeCursor's KDoc for why `id` is always the tiebreak.
+-- DESC on both since that's the order the query itself runs in.
+CREATE INDEX IF NOT EXISTS recipes_likes_id_idx
+    ON public.recipes(likes DESC, id DESC);
+
+-- Same reasoning as recipes_likes_id_idx above, for selectRecipeFeed()'s other
+-- (non-`q`, non-`orderByLikes`) path - the dashboard's default alphabetical
+-- order. recipes_name_trgm_idx above doesn't cover this: that one's a GIN
+-- trigram index for `%` similarity search, not a btree an ORDER BY name/keyset
+-- comparison can seek on.
+CREATE INDEX IF NOT EXISTS recipes_name_id_idx
+    ON public.recipes(name ASC, id ASC);
+
+-- selectLikedRecipeFeed() filters recipe_likes by user_id and both orders by and
+-- keyset-paginates on `(created_at, recipe_id)` - recipe_likes_pkey (recipe_id,
+-- user_id) doesn't help here since user_id isn't its leading column and it
+-- carries no created_at ordering at all.
+CREATE INDEX IF NOT EXISTS recipe_likes_user_created_idx
+    ON public.recipe_likes(user_id, created_at DESC, recipe_id DESC);

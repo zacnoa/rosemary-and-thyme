@@ -30,9 +30,9 @@ class AuthService(
     private val rateLimiter: RateLimiterService
 ) {
 
-    // 5 attempts per email per 15 minutes - independent of RateLimitFilter's coarser,
+    // 10 attempts per email per 15 minutes - independent of RateLimitFilter's coarser,
     // IP-keyed limit on the whole /auth path
-    private val loginLimit = Bandwidth.builder().capacity(5).refillIntervally(5, Duration.ofMinutes(15)).build()
+    private val loginLimit = Bandwidth.builder().capacity(10).refillIntervally(10, Duration.ofMinutes(15)).build()
 
     // 5 attempts per user per 15 minutes - same shape as loginLimit, guards against
     // brute-forcing the current password on POST /user/password
@@ -66,9 +66,9 @@ class AuthService(
      * Deliberately distinct from [UserCredentialsException]: `routes/auth/login.tsx`
      * catches this specifically and redirects straight into the Google sign-in flow
      * instead of showing a credentials error, regardless of what was typed in the
-     * password field - this does mean an emailed-registered-via-Google account is now
-     * distinguishable from a wrong-password attempt, a deliberate trade-off for that
-     * UX (see the class-level feature request this implements).
+     * password field - this does mean a Google-registered email is now distinguishable
+     * from a wrong-password attempt on some other account, a deliberate trade-off for
+     * that UX.
      * @throws EmailNotVerifiedException if the account exists but its email isn't verified yet
      */
     fun login(email: String, password: String): String {
