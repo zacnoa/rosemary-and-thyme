@@ -114,13 +114,6 @@ class UserController(
      * @param user the authenticated caller, whose recipes are searched
      * @return 200 OK with matching recipes as (id, name) pairs
      */
-    @GetMapping("/recipes/search")
-    fun searchOwnRecipes(
-        @RequestParam(required = false) q: String?,
-        @AuthenticationPrincipal user: UsersRecord
-    ): ResponseEntity<List<Pair<UUID, String>>> =
-        ResponseEntity.ok(recipeService.searchRecipes(q = q, userId = user.id, excludePrivate = false))
-
     /**
      * The dashboard's recipe list - the authenticated caller's own recipes, as full
      * feed cards (see [RecipeFeedDTO]), reusing the exact same

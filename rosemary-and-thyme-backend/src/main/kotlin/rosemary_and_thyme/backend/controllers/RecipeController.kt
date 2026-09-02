@@ -20,18 +20,13 @@ import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRec
 import rosemary_and_thyme.backend.models.recipes.LikeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeFeedPage
+import rosemary_and_thyme.backend.models.recipes.RecipeWriteDTO
 import rosemary_and_thyme.backend.models.recipes.SetPrivateRequest
 import rosemary_and_thyme.backend.services.recipes.RecipeService
 import java.util.UUID
 
-
 /**
- * Controller layer
- *
- * SpringBoot uses Thread-per-request architecture.
- * So in this layer each thread shall receive a request
- * and begin processing it by calling the appropriate
- * function
+ * Controller layer.
  */
 
 @RestController
@@ -39,17 +34,11 @@ import java.util.UUID
 class RecipeController(private val recipeService: RecipeService) {
 
     /**
-     * Publicly readable - permitted without auth in
-     * [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain].
-     * [user] is still resolved when present (an authenticated caller viewing this
-     * without owning it) purely to fill in [RecipeDTO.liked] - it's nullable/optional
-     * here specifically because this route stays open to anonymous callers too.
-     *
-     * @param id the recipe's id
-     * @param user the authenticated caller, or `null` for an anonymous viewer
-     * @return 200 OK with the full [RecipeDTO], or a 404 problem-detail body (via
-     * [GlobalExceptionHandler.handleNotFound]) if no recipe exists with that id
-     */
+ * Publicly readable - permitted without auth in the associated behavior.
+ * @param id the recipe's id.
+ * @param user the authenticated caller, or `null` for an anonymous viewer.
+ * @return 200 OK with the full [RecipeDTO], or a 404 problem-detail body (via.
+ */
     @GetMapping("/{id}")
     fun getRecipeById(
         @PathVariable id: UUID,
@@ -59,81 +48,53 @@ class RecipeController(private val recipeService: RecipeService) {
         return ResponseEntity.ok(recipe)
     }
 
-
     /**
-     * Creates or updates a recipe (upsert - see [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.upsertRecipeBase]),
-     * together with any new image files attached to it. Requires authentication;
-     * ownership of an existing recipe is enforced in [rosemary_and_thyme.backend.services.recipes.RecipeService.saveRecipe].
-     *
-     * Sent as multipart/form-data rather than plain JSON because the request bundles
-     * both the recipe's JSON body and its raw image files in one call.
-     *
-     * Consumes serves as a safeguard against invalid data types
-     *
-     * MultiValueMap can have more values mapped to one key.
-     * so we use .first() to get only the first valid image file
-     *
-     * @param id the recipe's id (path segment; must match [dto]'s own id)
-     * @param dto the recipe's full JSON body, under the "recipe" part
-     * @param allParts every multipart part of the request, including "recipe" and each
-     * image file - image parts are keyed by the temporary [UUID] the frontend assigned
-     * to that image (see [rosemary_and_thyme.backend.models.recipes.RecipeImageDTO.id])
-     * @param user the authenticated caller, checked as the recipe's owner
-     * @return 200 OK with the saved recipe, re-fetched so the response reflects the
-     * final DB/Cloudinary state (real ids, uploaded urls, etc.)
-     */
+ * Creates or updates a recipe (upsert - see [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.upsertRecipeBase]).
+ * @param id the recipe's id (path segment; must match [dto]'s own id)
+ * @param dto the recipe's full JSON body, under the "recipe" part.
+ * @param allParts every multipart part of the request, including "recipe" and each.
+ * @param user the authenticated caller, checked as the recipe's owner.
+ * @return 200 OK with the saved recipe, re-fetched so the response reflects the.
+ */
+    @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
+    fun createRecipe(
+        @RequestPart("recipe") dto: RecipeWriteDTO,
+        @RequestParam allParts: MultiValueMap<String, MultipartFile>,
+        @AuthenticationPrincipal user: UsersRecord
+    ): ResponseEntity<RecipeDTO> =
+        ResponseEntity.ok(recipeService.createRecipe(dto, imageParts(allParts), user))
+
     @PutMapping("/{id}", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun saveRecipe(
         @PathVariable id: UUID,
-        @RequestPart("recipe") dto: RecipeDTO,
+        @RequestPart("recipe") dto: RecipeWriteDTO,
         @RequestParam allParts: MultiValueMap<String, MultipartFile>,
         @AuthenticationPrincipal user: UsersRecord
     ): ResponseEntity<RecipeDTO> {
         /**
-         * Filters recipe part from allParts
-         */
-        val images = allParts
-            .filter { (key, _) -> key != "recipe" }
-            .mapKeys { UUID.fromString(it.key) }
-            .mapValues { it.value.first() }
-
-        val recipe = recipeService.saveRecipe(dto, images,user)
+ * Filters recipe part from allParts.
+ */
+        val recipe = recipeService.saveRecipe(id, dto, imageParts(allParts), user)
         return ResponseEntity.ok(recipe)
     }
 
+    private fun imageParts(allParts: MultiValueMap<String, MultipartFile>): Map<UUID, MultipartFile> {
+        require(allParts.filterKeys { it != "recipe" }.values.all { it.size == 1 }) {
+            "Each image part must have exactly one file"
+        }
+        return allParts
+            .filterKeys { it != "recipe" }
+            .mapKeys { UUID.fromString(it.key) }
+            .mapValues { it.value.single() }
+    }
+
     /**
-     * Fuzzy-searches recipes across all users by name (trigram similarity - see
-     * [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.selectRecipeFeed]),
-     * ordered by like count - this is the "browse/discover popular recipes" endpoint
-     * behind the home page's global recipe feed, not a precise lookup, so it always
-     * favors popularity over name-match relevance once [q] has narrowed the results.
-     * Returns a full [RecipeFeedDTO] per result (not just id/name) since each one is
-     * rendered as a feed card. Publicly readable - permitAll in
-     * [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain] -
-     * same reasoning as `GET /recipe/{id}`: recipes (and finding them) are public.
-     *
-     * The scoped, "my recipes only" equivalent - relevance/alphabetical order, not
-     * popularity, and the lightweight (id, name) shape rather than a full feed card -
-     * is [UserController.searchOwnRecipes]. This endpoint already accepts [userId] too,
-     * so a future "my recipes, shown the same way everyone else's are" dashboard view
-     * can reuse it directly rather than needing a third route.
-     *
-     * Always excludes private recipes (`excludePrivate = true`), regardless of whether
-     * [userId] is given - even "browse this one user's recipes" never surfaces one of
-     * their private ones here; the auth-gated dashboard equivalents
-     * ([UserController.searchOwnRecipes]/`searchUserFeed`) are what still show the
-     * caller their own private recipes.
-     *
-     * Cursor-paginated (see [RecipeFeedPage], `components/common/VirtualFeed.tsx` on
-     * the frontend) - [cursor] is always an earlier call's own [RecipeFeedPage.nextCursor],
-     * never constructed by the caller.
-     *
-     * @param q optional name filter; when omitted, every recipe is eligible, still
-     * ordered by likes
-     * @param userId optional filter to only this user's recipes
-     * @param cursor `null` for the first page
-     * @return 200 OK with a page of matching recipes as feed cards, most-liked first
-     */
+ * Fuzzy-searches recipes across all users by name (trigram similarity - see.
+ * @param q optional name filter; when omitted, every recipe is eligible, still.
+ * @param userId optional filter to only this user's recipes.
+ * @param cursor `null` for the first page.
+ * @return 200 OK with a page of matching recipes as feed cards, most-liked first.
+ */
     @GetMapping("/search")
     fun searchRecipes(
         @RequestParam(required = false) q: String?,
@@ -143,17 +104,11 @@ class RecipeController(private val recipeService: RecipeService) {
         ResponseEntity.ok(recipeService.searchRecipeFeed(q, userId, orderByLikes = true, excludePrivate = true, cursor = cursor))
 
     /**
-     * Likes a recipe on the caller's behalf. Not in the `permitAll()` list in
-     * [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain],
-     * so an unauthenticated request is rejected before this method body ever runs -
-     * the frontend is expected to redirect to login itself rather than let that
-     * happen (see queries/likeRecipe.ts), this is the defense-in-depth backstop.
-     * Idempotent and ownership-checked - see [RecipeService.likeRecipe].
-     *
-     * @param id the recipe to like
-     * @param user the authenticated caller
-     * @return 200 OK with the caller's new like state and the recipe's up-to-date count
-     */
+ * Likes a recipe on the caller's behalf. Not in the `permitAll()` list in the associated behavior.
+ * @param id the recipe to like.
+ * @param user the authenticated caller.
+ * @return 200 OK with the caller's new like state and the recipe's up-to-date count.
+ */
     @PostMapping("/{id}/like")
     fun likeRecipe(
         @PathVariable id: UUID,
@@ -162,13 +117,11 @@ class RecipeController(private val recipeService: RecipeService) {
         ResponseEntity.ok(recipeService.likeRecipe(id, user))
 
     /**
-     * Removes the caller's like from a recipe. Same auth/idempotency notes as
-     * [likeRecipe] - see [RecipeService.unlikeRecipe].
-     *
-     * @param id the recipe to unlike
-     * @param user the authenticated caller
-     * @return 200 OK with the caller's new like state and the recipe's up-to-date count
-     */
+ * Removes the caller's like from a recipe. Same auth/idempotency notes as.
+ * @param id the recipe to unlike.
+ * @param user the authenticated caller.
+ * @return 200 OK with the caller's new like state and the recipe's up-to-date count.
+ */
     @DeleteMapping("/{id}/like")
     fun unlikeRecipe(
         @PathVariable id: UUID,
@@ -177,16 +130,11 @@ class RecipeController(private val recipeService: RecipeService) {
         ResponseEntity.ok(recipeService.unlikeRecipe(id, user))
 
     /**
-     * Deletes a recipe (and every image it had) on the caller's behalf. Not in the
-     * `permitAll()` list in [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain],
-     * so an unauthenticated request is rejected before this method body ever runs.
-     * Ownership-checked in [RecipeService.deleteRecipe] - a caller who isn't the
-     * recipe's owner gets a 403, not a silent no-op.
-     *
-     * @param id the recipe to delete
-     * @param user the authenticated caller
-     * @return 204 No Content on success
-     */
+ * Deletes a recipe (and every image it had) on the caller's behalf. Not in the requested value.
+ * @param id the recipe to delete.
+ * @param user the authenticated caller.
+ * @return 204 No Content on success.
+ */
     @DeleteMapping("/{id}")
     fun deleteRecipe(
         @PathVariable id: UUID,
@@ -197,20 +145,12 @@ class RecipeController(private val recipeService: RecipeService) {
     }
 
     /**
-     * Toggles a recipe's private/public flag on the caller's behalf - the dashboard's
-     * per-recipe toggle (see components/dashboard/DashboardRecipeCard.tsx on the
-     * frontend). A dedicated `PATCH` rather than routing through [saveRecipe]: the
-     * dashboard's recipe list only ever has the lightweight [RecipeFeedDTO] for each
-     * card, not the full recipe [saveRecipe]'s multipart body would need. Not in the
-     * `permitAll()` list in [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain],
-     * so an unauthenticated request is rejected before this method body ever runs.
-     * Ownership-checked in [RecipeService.setRecipePrivate].
-     *
-     * @param id the recipe to update
-     * @param request the new `isPrivate` value
-     * @param user the authenticated caller, checked as the recipe's owner
-     * @return 200 OK with an empty body
-     */
+ * Toggles a recipe's private/public flag on the caller's behalf - the dashboard's.
+ * @param id the recipe to update.
+ * @param request the new `isPrivate` value.
+ * @param user the authenticated caller, checked as the recipe's owner.
+ * @return 200 OK with an empty body.
+ */
     @PatchMapping("/{id}/private")
     fun setRecipePrivate(
         @PathVariable id: UUID,
