@@ -3,7 +3,6 @@ package rosemary_and_thyme.backend.filters
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import org.slf4j.LoggerFactory
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
@@ -12,14 +11,12 @@ import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import rosemary_and_thyme.backend.exceptions.SessionException
 import rosemary_and_thyme.backend.services.auth.AuthService
-import rosemary_and_thyme.backend.services.auth.hashToken
 
 /** Authenticates requests from valid session cookies before authorization checks. */
 @Component
 class SessionAuthFilter(
     private val authService: AuthService
 ) : OncePerRequestFilter() {
-    private val log = LoggerFactory.getLogger(SessionAuthFilter::class.java)
 
     /** Resolves a session cookie into the Spring Security principal.
      * @param request the incoming HTTP request.
@@ -42,13 +39,6 @@ class SessionAuthFilter(
                 try {
                     authService.validateSession(cookie.value)
                 } catch (ex: SessionException) {
-                    log.warn(
-                        "Rejected session cookie for {} {}: {} (hash prefix: {})",
-                        request.method,
-                        request.requestURI,
-                        ex.message,
-                        hashToken(cookie.value).take(12)
-                    )
                     // Invalid/expired token on this particular cookie - not necessarily
                     // fatal, another one of the same-named cookies might still be valid.
                     null
@@ -59,6 +49,7 @@ class SessionAuthFilter(
                 val authentication = UsernamePasswordAuthenticationToken(
                     user,                                   // principal - the full UsersRecord, so controllers can read it back via @AuthenticationPrincipal
                     null,                                    // credentials - not needed once already authenticated
+                    listOf(SimpleGrantedAuthority("ROLE_USER"))
                 )
                 authentication.details = WebAuthenticationDetailsSource().buildDetails(request)
 
