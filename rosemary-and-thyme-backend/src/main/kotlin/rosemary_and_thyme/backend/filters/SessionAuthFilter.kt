@@ -12,34 +12,17 @@ import org.springframework.web.filter.OncePerRequestFilter
 import rosemary_and_thyme.backend.exceptions.SessionException
 import rosemary_and_thyme.backend.services.auth.AuthService
 
-/**
- * Authenticates every request from its `session_cookie` cookie, ahead of Spring
- * Security's own authorization checks. Registered in
- * [rosemary_and_thyme.backend.configurations.SecurityConfig.securityFilterChain] as the
- * filter before [org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter] -
- * this is the only auth mechanism the app uses.
- *
- * On success, the resolved [rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord]
- * becomes the request's principal, which is how controllers pick it up via
- * `@AuthenticationPrincipal` (see [rosemary_and_thyme.backend.controllers.RecipeController.saveRecipe]).
- *
- * A browser can end up sending *more than one* cookie named `session_cookie` at once -
- * e.g. a stale cookie set under an older `app.cookie-domain` value (see
- * [rosemary_and_thyme.backend.controllers.AuthController.createSessionCookie]) sticking
- * around alongside the current one after that value changes, since the two are distinct
- * cookies (different `Domain` attribute) as far as the browser's cookie jar is concerned
- * even though `HttpServletRequest.getCookies()` reports them with the same name and no
- * `Domain` info to tell them apart by. Picking just the first of those blindly would mean
- * a 50/50 chance of authenticating off the stale, no-longer-valid one and failing the
- * request even though a good session cookie was right there too - so every cookie named
- * `session_cookie` is tried against [AuthService.validateSession] in order, and the first
- * one that actually validates wins.
- */
+/** Authenticates requests from valid session cookies before authorization checks. */
 @Component
 class SessionAuthFilter(
     private val authService: AuthService
 ) : OncePerRequestFilter() {
 
+    /** Resolves a session cookie into the Spring Security principal.
+     * @param request the incoming HTTP request.
+     * @param response the HTTP response.
+     * @param filterChain the remaining servlet filters.
+     */
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
@@ -66,7 +49,6 @@ class SessionAuthFilter(
                 val authentication = UsernamePasswordAuthenticationToken(
                     user,                                   // principal - the full UsersRecord, so controllers can read it back via @AuthenticationPrincipal
                     null,                                    // credentials - not needed once already authenticated
-                    listOf(SimpleGrantedAuthority("ROLE_USER")) // authorities - single flat role; adjust if a real role system is added later
                 )
                 authentication.details = WebAuthenticationDetailsSource().buildDetails(request)
 

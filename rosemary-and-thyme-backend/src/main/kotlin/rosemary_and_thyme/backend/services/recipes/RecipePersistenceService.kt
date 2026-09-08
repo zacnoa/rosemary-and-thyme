@@ -7,11 +7,15 @@ import rosemary_and_thyme.backend.models.recipes.RecipeWriteDTO
 import rosemary_and_thyme.backend.repositories.recipes.RecipeRepository
 import java.util.UUID
 
-/**
- * Separate bean so Spring actually applies the transaction proxy to recipe writes.
- */
+/** Persists complete recipe changes in one database transaction. */
 @Service
 class RecipePersistenceService(private val recipeRepository: RecipeRepository) {
+    /** Synchronizes every stored part of a recipe.
+     * @param recipeId the existing recipe id, or `null` for a new recipe.
+     * @param recipe the complete desired recipe state.
+     * @param user the owner used when inserting a new recipe.
+     * @return the persisted recipe id.
+     */
     @Transactional
     fun save(recipeId: UUID?, recipe: RecipeWriteDTO, user: UsersRecord): UUID {
         val persistedId = recipeRepository.upsertRecipeBase(recipeId, recipe, user)
@@ -21,6 +25,9 @@ class RecipePersistenceService(private val recipeRepository: RecipeRepository) {
         return persistedId
     }
 
+    /** Deletes a recipe and its database image records.
+     * @param recipeId the recipe to delete.
+     */
     @Transactional
     fun delete(recipeId: UUID) = recipeRepository.deleteRecipeAndImages(recipeId)
 }

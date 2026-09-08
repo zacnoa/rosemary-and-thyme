@@ -9,16 +9,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 import rosemary_and_thyme.backend.services.ratelimit.RateLimiterService
 import java.time.Duration
 
-/**
- * Coarse, IP-keyed throttle on the auth endpoints. This is defense-in-depth behind
- * the edge-level (Cloudflare) rate limiting - it doesn't need to be precise per
- * endpoint since the tighter, business-aware limits (per email, e.g. login/resend)
- * live in the services themselves.
- *
- * Runs as a plain servlet Filter, so an exception thrown here would NOT reach
- * GlobalExceptionHandler (that only covers exceptions raised during Spring MVC
- * dispatch) - the 429 response is written directly instead.
- */
+/** Applies an IP-based rate limit to authentication requests. */
 @Component
 class RateLimitFilter(
     private val rateLimiter: RateLimiterService
@@ -26,6 +17,11 @@ class RateLimitFilter(
 
     private val ipLimit = Bandwidth.builder().capacity(20).refillIntervally(20, Duration.ofMinutes(1)).build()
 
+    /** Applies the auth IP limit before continuing the filter chain.
+     * @param request the incoming HTTP request.
+     * @param response the HTTP response.
+     * @param filterChain the remaining servlet filters.
+     */
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,

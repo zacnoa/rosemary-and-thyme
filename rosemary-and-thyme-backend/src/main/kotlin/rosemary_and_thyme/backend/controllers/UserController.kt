@@ -23,11 +23,7 @@ import rosemary_and_thyme.backend.services.auth.SessionCookieFactory
 import rosemary_and_thyme.backend.services.recipes.RecipeService
 import java.util.UUID
 
-/**
- * Endpoints scoped to the currently authenticated user. [UsersRecord] is injected as
- * `@AuthenticationPrincipal` because [rosemary_and_thyme.backend.filters.SessionAuthFilter]
- * puts it directly on the Spring Security context after validating the session cookie.
- */
+/** Exposes endpoints for the currently authenticated user. */
 @RestController
 @RequestMapping("/user")
 class UserController(
@@ -37,9 +33,9 @@ class UserController(
     private val cookies: SessionCookieFactory
 ) {
 
-    /**
-     * @param user the authenticated caller, resolved from the session cookie
-     * @return 200 OK with the caller's public profile
+    /** Returns the current user's public account details.
+     * @param user the authenticated user.
+     * @return `200 OK` with the account details.
      */
     @GetMapping("/aboutme")
     fun aboutMe(@AuthenticationPrincipal user: UsersRecord): ResponseEntity<UserDTO> {
@@ -54,15 +50,10 @@ class UserController(
         )
     }
 
-    /**
-     * Changes the caller's password (current + new, no email round trip - see
-     * [AuthService.changePassword]). Every other session for the account is revoked
-     * and this request gets a fresh session cookie, so the caller stays logged in here
-     * while any other device is signed out.
-     *
-     * @param request the current password (checked) and the new one to set
-     * @param user the authenticated caller
-     * @return 200 OK with a fresh session cookie attached
+    /** Changes the current user's password.
+     * @param request the current and replacement passwords.
+     * @param user the authenticated user.
+     * @return `200 OK` with a replacement session cookie.
      */
     @PutMapping("/password")
     fun changePassword(
@@ -76,14 +67,9 @@ class UserController(
             .build()
     }
 
-    /**
-     * Schedules the caller's account for deletion 30 days from now (see
-     * [AccountDeletionService]). The account stays fully usable for that whole grace
-     * period - this only sets a flag the frontend uses to show a "cancel?" banner
-     * (`UserDTO.deletionRequestedAt`) and a daily job checks against later.
-     *
-     * @param user the authenticated caller
-     * @return 200 OK with an empty body
+    /** Schedules the current account for deletion.
+     * @param user the authenticated user.
+     * @return `200 OK` after scheduling deletion.
      */
     @PostMapping("/delete")
     fun requestAccountDeletion(@AuthenticationPrincipal user: UsersRecord): ResponseEntity<Unit> {
@@ -91,12 +77,9 @@ class UserController(
         return ResponseEntity.ok().build()
     }
 
-    /**
-     * Cancels a pending account deletion, if the caller requested one within the last
-     * 30 days. No-ops (still 200) if none was pending.
-     *
-     * @param user the authenticated caller
-     * @return 200 OK with an empty body
+    /** Cancels the current account's pending deletion.
+     * @param user the authenticated user.
+     * @return `200 OK` after cancelling deletion.
      */
     @DeleteMapping("/delete")
     fun cancelAccountDeletion(@AuthenticationPrincipal user: UsersRecord): ResponseEntity<Unit> {
@@ -104,31 +87,11 @@ class UserController(
         return ResponseEntity.ok().build()
     }
 
-    /**
-     * Searches recipes owned by the authenticated caller only - the counterpart of
-     * [RecipeController.searchRecipes], which searches across all users. Unlike that
-     * public endpoint, `excludePrivate` stays `false` here - a caller searching their
-     * own recipes must still find the private ones.
-     *
-     * @param q optional fuzzy name filter (see [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.selectRecipesWithFilters])
-     * @param user the authenticated caller, whose recipes are searched
-     * @return 200 OK with matching recipes as (id, name) pairs
-     */
-    /**
-     * The dashboard's recipe list - the authenticated caller's own recipes, as full
-     * feed cards (see [RecipeFeedDTO]), reusing the exact same
-     * [rosemary_and_thyme.backend.services.recipes.RecipeService.searchRecipeFeed] that
-     * backs [RecipeController.searchRecipes]'s global feed - see that endpoint's KDoc
-     * for why it already accepted a [UUID] `userId` filter in the first place.
-     * Alphabetical/relevance order (not by likes) - the dashboard is "manage my own
-     * recipes", not a popularity browse.
-     *
-     * Cursor-paginated (see [RecipeFeedPage]).
-     *
-     * @param q optional fuzzy name filter
-     * @param cursor `null` for the first page
-     * @param user the authenticated caller, whose recipes are searched
-     * @return 200 OK with a page of matching recipes as feed cards
+    /** Returns a paginated feed of the current user's recipes.
+     * @param q the optional fuzzy recipe-name query.
+     * @param cursor the optional previous-page cursor.
+     * @param user the authenticated user.
+     * @return `200 OK` with one recipe-feed page.
      */
     @GetMapping("/recipes/feed")
     fun searchUserFeed(
@@ -140,18 +103,10 @@ class UserController(
             recipeService.searchRecipeFeed(q = q, userId = user.id, orderByLikes = false, excludePrivate = false, cursor = cursor)
         )
 
-    /**
-     * The dashboard's "Liked Recipes" section - every recipe the authenticated caller
-     * has liked, most recently liked first, as full feed cards (see [RecipeFeedDTO]).
-     * Counterpart of [searchUserFeed] (the caller's *own* recipes) - together they back
-     * the dashboard's two scrollable sections. See
-     * [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.selectLikedRecipeFeed]
-     * for why this has no name filter and isn't affected by a recipe becoming private
-     * after the caller liked it. Cursor-paginated same as [searchUserFeed].
-     *
-     * @param cursor `null` for the first page
-     * @param user the authenticated caller, whose likes are listed
-     * @return 200 OK with a page of liked recipes as feed cards, most recently liked first
+    /** Returns a paginated feed of recipes liked by the current user.
+     * @param cursor the optional previous-page cursor.
+     * @param user the authenticated user.
+     * @return `200 OK` with one recipe-feed page.
      */
     @GetMapping("/recipes/liked")
     fun searchLikedRecipes(

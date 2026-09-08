@@ -26,28 +26,23 @@ import java.time.OffsetDateTime
 import java.util.*
 import kotlin.collections.partition
 
-/**
- * Repository layer.
- */
+/** Provides database operations for recipes and their related records. */
 
 @Repository
 class RecipeRepository(val dsl: DSLContext) {
 
     companion object {
-        /**
- * Page size every cursor-paginated feed query below defaults to when a caller doesn't override it.
- */
+        /** Page size every cursor-paginated feed query below defaults to when a caller doesn't override it. */
         private const val DEFAULT_PAGE_SIZE = 20
     }
 
-    /**
- * Reconciles a client-submitted "desired state" (items + the order they should.
- * @param existingIds ids currently in the DB for this parent (e.g. this recipe's ingredient ids)
- * @param items the client's full submitted set of items.
- * @param idOf extracts an item's id, since [T] isn't assumed to expose one directly.
- * @param order the client's submitted display order (a list of ids); an item's.
- * @return a [Triple] of (items to update with their target index, items to insert.
- */
+    /** Splits submitted items into updates, inserts, and deletions.
+     * @param existingIds ids currently stored for the parent record.
+     * @param items all submitted items.
+     * @param idOf extracts an item's id.
+     * @param order the submitted item order.
+     * @return items to update and insert with indexes, plus ids to delete.
+     */
     private fun <T> diffByOrder(
         existingIds: Set<UUID>,
         items: Collection<T>,
@@ -64,24 +59,20 @@ class RecipeRepository(val dsl: DSLContext) {
         )
     }
 
-    /**
- * Inserts or updates a recipe's base row.
- * @param dto the recipe's desired state.
- * @param user the authenticated owner used when inserting a recipe.
- * @return the existing ID or the newly generated ID.
- */
+    /** Inserts or updates a recipe's base row.
+     * @param recipeId the existing recipe id, or `null` for a new recipe.
+     * @param dto the submitted recipe state.
+     * @param user the owner used for a new recipe.
+     * @return the persisted recipe id.
+     */
     fun upsertRecipeBase(recipeId: UUID?, dto: RecipeWriteDTO, user: UsersRecord): UUID {
-        /**
- * check if recipe with given id exists.
- */
+        /** check if recipe with given id exists. */
         val existingId = dsl.select(RECIPES.ID)
             .from(RECIPES)
             .where(RECIPES.ID.eq(recipeId))
             .fetchOne(RECIPES.ID)
 
-        /**
- * if there is a recipe update existing row and return id.
- */
+        /** if there is a recipe update existing row and return id. */
         return if (existingId != null) {
             dsl.update(RECIPES)
                 .set(RECIPES.NAME, dto.name)
@@ -94,9 +85,7 @@ class RecipeRepository(val dsl: DSLContext) {
                 .execute()
             existingId
         }
-        /**
- * if there is no recipe by that id insert new recipe and return the new id.
- */
+        /** if there is no recipe by that id insert new recipe and return the new id. */
         else {
             dsl.insertInto(RECIPES)
                 .set(RECIPES.USER_ID, user.id)
@@ -114,11 +103,10 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    /**
- * Flips a recipe's [rosemary_and_thyme.backend.models.recipes.RecipeDTO.isPrivate].
- * @param recipeId the recipe to update.
- * @param isPrivate the new value.
- */
+    /** Updates a recipe's visibility flag.
+     * @param recipeId the recipe to update.
+     * @param isPrivate the requested visibility.
+     */
     fun updatePrivate(recipeId: UUID, isPrivate: Boolean) {
         dsl.update(RECIPES)
             .set(RECIPES.IS_PRIVATE, isPrivate)
@@ -126,11 +114,10 @@ class RecipeRepository(val dsl: DSLContext) {
             .execute()
     }
 
-    /**
- * Returns up to 100 recipes owned by a user without filtering.
- * @param userId the owner to list recipes for.
- * @return up to 100 recipe ID/name pairs.
- */
+    /** Lists recipe ids and names owned by a user.
+     * @param userId the recipe owner.
+     * @return the user's recipe ids paired with names.
+     */
     fun selectAllRecipes(userId: UUID): List<Pair<UUID, String>> =
 
         dsl.select(RECIPES.ID,RECIPES.NAME).from(RECIPES)
@@ -138,11 +125,10 @@ class RecipeRepository(val dsl: DSLContext) {
             .limit(100)
             .fetch{record -> Pair(record[RECIPES.ID].dbNotNull("id"), record[RECIPES.NAME].dbNotNull("name"))}
 
-    /**
- * Returns every recipe ID owned by a user.
- * @param userId the owner whose recipe ids to fetch.
- * @return every recipe id owned by [userId].
- */
+    /** Lists every recipe id owned by a user.
+     * @param userId the recipe owner.
+     * @return the user's recipe ids.
+     */
     fun selectAllRecipeIds(userId: UUID): List<UUID> =
         dsl.select(RECIPES.ID)
             .from(RECIPES)
@@ -150,20 +136,17 @@ class RecipeRepository(val dsl: DSLContext) {
             .fetch(RECIPES.ID)
             .filterNotNull()
 
-    /**
- * Reconciles a recipe's ingredients against the client's submitted state (see.
- * @param recipeId the recipe the ingredients belong to.
- * @param ingredients the client's full submitted set of ingredients, keyed by id.
- * @param order the client's submitted display order for [ingredients].
- */
+    /** Synchronizes a recipe's ingredients and their order.
+     * @param recipeId the owning recipe.
+     * @param ingredients submitted ingredients keyed by id.
+     * @param order the submitted ingredient order.
+     */
     fun syncIngredients(
         recipeId: UUID,
         ingredients: Map<UUID, IngredientDTO>,
         order: List<UUID>
     ) {
-        /**
- * fetch existing ids for checking with client state.
- */
+        /** Fetches the stored ingredient ids for comparison with the client state. */
         val existingIds = dsl.select(INGREDIENTS.ID)
             .from(INGREDIENTS)
             .where(INGREDIENTS.RECIPE_ID.eq(recipeId))
@@ -173,9 +156,7 @@ class RecipeRepository(val dsl: DSLContext) {
 
         val (toUpdate, toInsert, toDelete) = diffByOrder(existingIds, ingredients.values, { it.id }, order)
 
-        /**
- * update all ingredients.
- */
+        /** update all ingredients. */
         if (toUpdate.isNotEmpty()) {
             dsl.batch(
                 toUpdate.map { (ing, index) ->
@@ -190,9 +171,7 @@ class RecipeRepository(val dsl: DSLContext) {
             ).execute()
         }
 
-        /**
- * insert new recipes.
- */
+        /** insert new recipes. */
         if (toInsert.isNotEmpty()) {
             val result = dsl.batch(
                 toInsert.map { (ing, index) ->
@@ -207,9 +186,7 @@ class RecipeRepository(val dsl: DSLContext) {
             check(result.all { it == 1 }) { "Error while inserting ingredients" }
         }
 
-        /**
- * delete ingredients.
- */
+        /** delete ingredients. */
         if (toDelete.isNotEmpty()) {
             dsl.deleteFrom(INGREDIENTS)
                 .where(INGREDIENTS.RECIPE_ID.eq(recipeId))
@@ -218,13 +195,12 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    /**
- * Reconciles a recipe's instructions against the client's submitted state (see.
- * @param recipeId the recipe the instructions belong to.
- * @param instructions the client's full submitted set of instruction steps, keyed by id.
- * @param order the client's submitted display order for [instructions].
- * @param images every image in the recipe (hero + instruction), keyed by id - passed.
- */
+    /** Synchronizes a recipe's instructions, images, and order.
+     * @param recipeId the owning recipe.
+     * @param instructions submitted instructions keyed by id.
+     * @param order the submitted instruction order.
+     * @param images submitted images keyed by id.
+     */
     fun syncInstructions(
         recipeId: UUID,
         instructions: Map<UUID, InstructionDTO>,
@@ -232,9 +208,7 @@ class RecipeRepository(val dsl: DSLContext) {
         images: Map<UUID, RecipeImageDTO>
     ) {
 
-        /**
- * fetch existing id for checking.
- */
+        /** fetch existing id for checking. */
         val existingIds = dsl.select(INSTRUCTIONS.ID)
             .from(INSTRUCTIONS)
             .where(INSTRUCTIONS.RECIPE_ID.eq(recipeId))
@@ -244,9 +218,7 @@ class RecipeRepository(val dsl: DSLContext) {
 
         val (toUpdate, toInsert, toDelete) = diffByOrder(existingIds, instructions.values, { it.id }, order)
 
-        /**
- * update existing instructions.
- */
+        /** update existing instructions. */
         if (toUpdate.isNotEmpty()) {
             dsl.batch(
                 toUpdate.map { (inst, index) ->
@@ -259,9 +231,7 @@ class RecipeRepository(val dsl: DSLContext) {
             ).execute()
         }
 
-        /**
- * insert new instructions.
- */
+        /** insert new instructions. */
         if (toInsert.isNotEmpty()) {
             toInsert.forEach { (inst, index) ->
                 val newId = dsl.insertInto(INSTRUCTIONS)
@@ -276,16 +246,12 @@ class RecipeRepository(val dsl: DSLContext) {
             }
         }
 
-        /**
- * update image for existing images.
- */
+        /** update image for existing images. */
         toUpdate.forEach { (inst, _) ->
             syncInstructionImages(inst.id, inst.images, images)
         }
 
-        /**
- * cascade setting on instruction Images ensures they are deleted after deleting corresponding instruction.
- */
+        /** cascade setting on instruction Images ensures they are deleted after deleting corresponding instruction. */
         if (toDelete.isNotEmpty()) {
             val imageIds = selectInstructionImageIds(toDelete)
             dsl.deleteFrom(INSTRUCTIONS)
@@ -296,12 +262,11 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    /**
- * Reconciles a recipe's hero images against the client's submitted state (see.
- * @param recipeId the recipe the hero images belong to.
- * @param images every image in the recipe (hero + instruction) keyed by id; only.
- * @param order the client's submitted display order of hero image ids.
- */
+    /** Synchronizes a recipe's hero images and order.
+     * @param recipeId the owning recipe.
+     * @param images submitted images keyed by id.
+     * @param order the submitted hero-image order.
+     */
     fun syncHeroImages(
         recipeId: UUID,
         images: Map<UUID, RecipeImageDTO>,
@@ -357,20 +322,17 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    /**
- * Reconciles a single instruction step's images against the client's submitted.
- * @param instructionId the instruction step the images belong to.
- * @param imageIds the client's submitted display order of this step's image ids.
- * @param images every image in the recipe (hero + instruction), keyed by id -.
- */
+    /** Synchronizes one instruction's image order.
+     * @param instructionId the owning instruction.
+     * @param imageIds the submitted image order.
+     * @param images submitted images keyed by id.
+     */
     fun syncInstructionImages(
         instructionId: UUID,
         imageIds: List<UUID>,
         images: Map<UUID, RecipeImageDTO>
     ) {
-        /**
- * Here we cannot reuse selectInstructionImages because the type Map<UUID, List<String>> loses the id information of individual images.
- */
+        /** Here we cannot reuse selectInstructionImages because the type Map<UUID, List<String>> loses the id information of individual images. */
         val existingIds = selectInstructionImageIds(instructionId)
         val instructionImages = imageIds.mapNotNull { images[it] }
         val (toUpdate, toInsert, toDelete) = diffByOrder(existingIds, instructionImages, { it.id }, imageIds)
@@ -421,19 +383,18 @@ class RecipeRepository(val dsl: DSLContext) {
         }
     }
 
-    /**
- * Describes this operation.
- * @param recipeId the recipe's id.
- * @return the recipe's base row, or `null` if no recipe exists with this id.
- */
+    /** Finds a recipe base row.
+     * @param recipeId the recipe id.
+     * @return the recipe row, or `null` when it does not exist.
+     */
     fun selectRecipeBase(recipeId: UUID): RecipesRecord? =
         dsl.selectFrom(RECIPES)
             .where(RECIPES.ID.eq(recipeId))
             .fetchOneInto(RecipesRecord::class.java)
 
-    /**
- * Deletes a recipe and its unreferenced image rows in the same transaction.
- */
+    /** Deletes a recipe and unreferenced image rows.
+     * @param recipeId the recipe to delete.
+     */
     fun deleteRecipeAndImages(recipeId: UUID) {
         val imageIds = selectAllImagesForRecipe(recipeId).keys
         dsl.deleteFrom(RECIPES)
@@ -442,30 +403,30 @@ class RecipeRepository(val dsl: DSLContext) {
         deleteImages(imageIds)
     }
 
-    /**
- * Describes this operation.
- * @return the recipe's ingredients, in display order.
- */
+    /** Lists a recipe's ingredients.
+     * @param recipeId the recipe id.
+     * @return ingredient rows in display order.
+     */
     fun selectIngredients(recipeId: UUID): List<IngredientsRecord> =
         dsl.selectFrom(INGREDIENTS)
             .where(INGREDIENTS.RECIPE_ID.eq(recipeId))
             .orderBy(INGREDIENTS.INDEX)
             .fetchInto(IngredientsRecord::class.java)
 
-    /**
- * Describes this operation.
- * @return the recipe's instruction steps, in display order.
- */
+    /** Lists a recipe's instructions.
+     * @param recipeId the recipe id.
+     * @return instruction rows in display order.
+     */
     fun selectInstructions(recipeId: UUID): List<InstructionsRecord> =
         dsl.selectFrom(INSTRUCTIONS)
             .where(INSTRUCTIONS.RECIPE_ID.eq(recipeId))
             .orderBy(INSTRUCTIONS.INDEX)
             .fetchInto(InstructionsRecord::class.java)
 
-    /**
- * Describes this operation.
- * @return the recipe's hero images as imageId -> url, in display order.
- */
+    /** Lists a recipe's hero images.
+     * @param recipeId the recipe id.
+     * @return image ids mapped to delivery URLs.
+     */
     fun selectHeroImages(recipeId: UUID): Map<UUID, String> =
         dsl.select(HERO_IMAGES.IMAGE_ID, IMAGES.URL)
             .from(HERO_IMAGES)
@@ -476,11 +437,10 @@ class RecipeRepository(val dsl: DSLContext) {
             .fetch()
             .associate { it[HERO_IMAGES.IMAGE_ID].dbNotNull("image_id") to it[IMAGES.URL].dbNotNull("url") }
 
-    /**
- * instruction of one recipe (see [rosemary_and_thyme.backend.services.recipes.RecipeService.findRecipeById])
- * @param instructionIds instruction ids to fetch images for, e.g. every.
- * @return images grouped by their owning instruction id, each as (imageId, url)
- */
+    /** Lists images grouped by instruction id.
+     * @param instructionIds instruction ids to query.
+     * @return image ids and URLs grouped by instruction.
+     */
     fun selectInstructionImages(instructionIds: List<UUID>): Map<UUID, List<Pair<UUID, String>>> =
         dsl.select(INSTRUCTION_IMAGES.INSTRUCTION_ID, INSTRUCTION_IMAGES.IMAGE_ID, IMAGES.URL)
             .from(INSTRUCTION_IMAGES)
@@ -493,11 +453,10 @@ class RecipeRepository(val dsl: DSLContext) {
                 { it[INSTRUCTION_IMAGES.IMAGE_ID].dbNotNull("image_id") to it[IMAGES.URL].dbNotNull("url") }
             )
 
-    /**
- * All images currently attached to a recipe (hero + instruction images), keyed by.
- * @param recipeId the recipe to fetch every image for.
- * @return recipe's current images, keyed by id, as a "before" snapshot for [rosemary_and_thyme.backend.services.recipes.RecipeService.saveRecipe].
- */
+    /** Lists every image attached to a recipe.
+     * @param recipeId the recipe id.
+     * @return image ids mapped to delivery URLs.
+     */
     fun selectAllImagesForRecipe(recipeId: UUID): Map<UUID, String> {
         val heroImage = dsl.select(HERO_IMAGES.IMAGE_ID, IMAGES.URL)
             .from(HERO_IMAGES)
@@ -516,10 +475,10 @@ class RecipeRepository(val dsl: DSLContext) {
             .associate { it[HERO_IMAGES.IMAGE_ID].dbNotNull("image_id") to it[IMAGES.URL].dbNotNull("url") }
     }
 
-    /**
- * Describes this operation.
- * @return ids of the recipe's current hero images, unordered.
- */
+    /** Lists hero-image ids for a recipe.
+     * @param recipeId the recipe id.
+     * @return the hero-image ids.
+     */
     fun selectHeroImageIds(recipeId: UUID): Set<UUID> =
         dsl.select(HERO_IMAGES.IMAGE_ID)
             .from(HERO_IMAGES)
@@ -528,10 +487,10 @@ class RecipeRepository(val dsl: DSLContext) {
             .filterNotNull()
             .toSet()
 
-    /**
- * Describes this operation.
- * @return ids of the instruction step's current images, unordered.
- */
+    /** Lists image ids for one instruction.
+     * @param instructionId the instruction id.
+     * @return the instruction-image ids.
+     */
     fun selectInstructionImageIds(instructionId: UUID): Set<UUID> =
         dsl.select(INSTRUCTION_IMAGES.IMAGE_ID)
             .from(INSTRUCTION_IMAGES)
@@ -557,18 +516,19 @@ class RecipeRepository(val dsl: DSLContext) {
             .execute()
     }
 
-    /**
- * Postgres `pg_trgm` similarity score between a recipe's name and [term], used to the associated behavior.
+/** Builds PostgreSQL's trigram-similarity expression for a recipe name.
+ * @param term the search term.
+ * @return the SQL similarity field.
  */
 private fun nameSimilarity(term: String) =
         DSL.function("similarity", SQLDataType.DOUBLE, RECIPES.NAME, DSL.value(term))
 
-    /**
- * Shared by recipe-feed queries - both filter recipes.
- * @param q optional name filter, matched with Postgres's trigram `%` similarity.
- * @param userId optional owner filter.
- * @param excludePrivate when `true`, adds `is_private = false` - used by the.
- */
+    /** Builds filters shared by recipe-feed queries.
+     * @param q the optional fuzzy name query.
+     * @param userId the optional owner filter.
+     * @param excludePrivate whether to omit private recipes.
+     * @return the SQL conditions for matching recipes.
+     */
     private fun searchConditions(q: String?, userId: UUID?, excludePrivate: Boolean = false): List<Condition> {
         val conditions = mutableListOf<Condition>()
         q?.let { conditions += DSL.condition("{0} % {1}", RECIPES.NAME, it) }
@@ -577,25 +537,16 @@ private fun nameSimilarity(term: String) =
         return conditions
     }
 
-    /**
- * Shared by recipe-feed queries. Global feeds order by likes; dashboard feeds.
- */
-    private fun searchOrder(q: String?, orderByLikes: Boolean) = when {
-        orderByLikes -> RECIPES.LIKES.desc()
-        q != null -> nameSimilarity(q).desc()
-        else -> RECIPES.NAME.asc()
-    }
 
-    /**
- * Fuzzy name/owner filtering and ordering, selecting the full set of columns a feed card.
- * @param q optional name filter.
- * @param userId optional owner filter.
- * @param orderByLikes whether to order by popularity rather than name relevance.
- * @param excludePrivate see [searchConditions].
- * @param cursor an earlier call's [RecipeFeedPage.nextCursor], or `null` for the.
- * @param pageSize how many recipes to return; capped by callers, not validated here.
- * @return up to [pageSize] matching recipes as feed cards (hero image not yet.
- */
+    /** Selects one cursor-paginated recipe-feed page.
+     * @param q the optional fuzzy name query.
+     * @param userId the optional owner filter.
+     * @param orderByLikes whether to sort by likes.
+     * @param excludePrivate whether to omit private recipes.
+     * @param cursor the optional previous-page cursor.
+     * @param pageSize the maximum returned item count.
+     * @return the selected feed page.
+     */
     fun selectRecipeFeed(
         q: String? = null,
         userId: UUID? = null,
@@ -664,13 +615,12 @@ private fun nameSimilarity(term: String) =
         )
     }
 
-    /**
- * Returns a user's liked recipes ordered by like time.
- * @param userId the user whose likes to list.
- * @param cursor an earlier call's [RecipeFeedPage.nextCursor], or `null` for the first page.
- * @param pageSize how many recipes to return; capped by callers, not validated here.
- * @return a page of liked recipes as feed cards.
- */
+    /** Selects one cursor-paginated page of liked recipes.
+     * @param userId the user whose likes are listed.
+     * @param cursor the optional previous-page cursor.
+     * @param pageSize the maximum returned item count.
+     * @return the selected feed page.
+     */
     fun selectLikedRecipeFeed(
         userId: UUID,
         cursor: String? = null,
@@ -720,11 +670,10 @@ private fun nameSimilarity(term: String) =
         )
     }
 
-    /**
- * First (lowest-index) hero image url for each of [recipeIds], one row per recipe.
- * @param recipeIds recipes to fetch a preview image for, e.g. one page of.
- * @return recipeId -> that recipe's first hero image url; a recipe with no hero.
- */
+    /** Finds the first hero image for each recipe.
+     * @param recipeIds the recipes to query.
+     * @return recipe ids mapped to first hero-image URLs.
+     */
     fun selectFirstHeroImages(recipeIds: List<UUID>): Map<UUID, String> {
         if (recipeIds.isEmpty()) return emptyMap()
 
@@ -738,10 +687,11 @@ private fun nameSimilarity(term: String) =
             .associate { it[HERO_IMAGES.RECIPE_ID].dbNotNull("recipe_id") to it[IMAGES.URL].dbNotNull("url") }
     }
 
-    /**
- * Describes this operation.
- * @return whether [userId] has already liked [recipeId] - backs the `liked` field on [RecipeDTO].
- */
+    /** Checks whether a user liked a recipe.
+     * @param recipeId the recipe id.
+     * @param userId the user id.
+     * @return whether the like exists.
+     */
     fun hasUserLikedRecipe(recipeId: UUID, userId: UUID): Boolean =
         dsl.fetchExists(
             dsl.selectOne()
@@ -750,10 +700,11 @@ private fun nameSimilarity(term: String) =
                 .and(RECIPE_LIKES.USER_ID.eq(userId))
         )
 
-    /**
- * Records that [userId] likes [recipeId], if they don't already. `ON CONFLICT DO.
- * @return `true` if a new like row was actually inserted (so the caller should.
- */
+    /** Inserts a recipe like when it does not already exist.
+     * @param recipeId the liked recipe.
+     * @param userId the user adding the like.
+     * @return whether a row was inserted.
+     */
     fun insertLike(recipeId: UUID, userId: UUID): Boolean =
         dsl.insertInto(RECIPE_LIKES)
             .set(RECIPE_LIKES.RECIPE_ID, recipeId)
@@ -761,19 +712,21 @@ private fun nameSimilarity(term: String) =
             .onConflictDoNothing()
             .execute() == 1
 
-    /**
- * Removes [userId]'s like on [recipeId], if one exists.
- * @return `true` if a like row was actually deleted (so the caller should also.
- */
+    /** Deletes a recipe like when it exists.
+     * @param recipeId the liked recipe.
+     * @param userId the user removing the like.
+     * @return whether a row was deleted.
+     */
     fun deleteLike(recipeId: UUID, userId: UUID): Boolean =
         dsl.deleteFrom(RECIPE_LIKES)
             .where(RECIPE_LIKES.RECIPE_ID.eq(recipeId))
             .and(RECIPE_LIKES.USER_ID.eq(userId))
             .execute() == 1
 
-    /**
- * Adjusts a recipe's cached like counter. [delta] is `+1`/`-1` in practice (see.
- */
+    /** Adjusts a recipe's cached like count.
+     * @param recipeId the recipe to update.
+     * @param delta the count increment or decrement.
+     */
     fun incrementLikes(recipeId: UUID, delta: Long) {
         dsl.update(RECIPES)
             .set(RECIPES.LIKES, RECIPES.LIKES.plus(delta))
@@ -781,10 +734,10 @@ private fun nameSimilarity(term: String) =
             .execute()
     }
 
-    /**
- * Describes this operation.
- * @return the recipe's current like count, straight from the DB (not a caller-computed value).
- */
+    /** Reads a recipe's cached like count.
+     * @param recipeId the recipe id.
+     * @return the current like count.
+     */
     fun selectLikesCount(recipeId: UUID): Long =
         dsl.select(RECIPES.LIKES)
             .from(RECIPES)

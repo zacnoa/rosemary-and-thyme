@@ -10,20 +10,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
-/**
- * Owns "delete my account" end to end: requesting it, cancelling it within the grace
- * period, and the daily job that actually erases an account once that period has
- * passed.
- *
- * A flag-on-the-row design (`users.deletion_requested_at`, see db/schema.sql), not a
- * separate archive table - the point of a deletion request is that the data is
- * genuinely gone once the grace period ends, not moved somewhere else, so there is
- * nothing left to archive.
- *
- * The account stays fully usable during the 30-day grace period (login is not
- * blocked) - `UserDTO.deletionRequestedAt` lets the frontend show a persistent
- * "your account will be deleted in N days - cancel?" banner instead.
- */
+/** Schedules, cancels, and permanently purges account deletions. */
 @Service
 class AccountDeletionService(
     private val userRepository: UserRepository,
@@ -33,31 +20,21 @@ class AccountDeletionService(
 
     private val gracePeriod = java.time.Duration.ofDays(30)
 
-    /** Marks [userId]'s account for deletion 30 days from now. Requesting again just resets the 30-day clock. */
+    /** Starts or renews an account's deletion grace period.
+     * @param userId the account to schedule for deletion.
+     */
     fun requestDeletion(userId: UUID) {
         userRepository.updateDeletionRequestedAt(userId)
     }
 
-    /** Cancels a pending deletion request. No-op if none was pending. */
+    /** Cancels an account's pending deletion request.
+     * @param userId the account to retain.
+     */
     fun cancelDeletion(userId: UUID) {
         userRepository.clearDeletionRequestedAt(userId)
     }
 
-    /**
-     * Runs once a day (03:00 server time - low-traffic hours) and permanently erases
-     * every account whose grace period has passed.
-     *
-     * Recipes are deleted first, one by one via [RecipeService.deleteAllRecipesForUser]
-     * (which cleans up Cloudinary images too), then the user row itself - at that
-     * point `ON DELETE CASCADE` (db/schema.sql) takes every session, oauth identity,
-     * and email-verification/password-reset token with it.
-     *
-     * A failure partway through one account (e.g. a Cloudinary hiccup bubbling up,
-     * though [rosemary_and_thyme.backend.services.recipes.RecipeService]'s own image
-     * cleanup is already best-effort/non-throwing) is logged and does not stop the
-     * remaining accounts in this run from being processed - one bad row shouldn't
-     * block everyone else's deletion from actually completing.
-     */
+    /** Permanently deletes accounts whose grace period has expired. */
     @Scheduled(cron = "0 0 3 * * *")
     fun purgeExpiredAccounts() {
         val cutoff = OffsetDateTime.now(ZoneOffset.UTC).minus(gracePeriod)

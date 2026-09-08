@@ -15,12 +15,7 @@ import io.github.bucket4j.Bandwidth
 import java.time.Duration
 import java.util.UUID
 
-/**
- * Top-level auth use cases, orchestrating [UserRepository], [SessionService],
- * [EmailVerificationService] and [PasswordResetService]. This is the layer
- * [rosemary_and_thyme.backend.controllers.AuthController]/[rosemary_and_thyme.backend.controllers.UserController]
- * talk to - it doesn't touch jOOQ or cookies directly itself.
- */
+/** Coordinates password authentication and account-management workflows. */
 @Service
 class AuthService(
     private val userRepository: UserRepository,
@@ -39,37 +34,23 @@ class AuthService(
     private val changePasswordLimit = Bandwidth.builder().capacity(5).refillIntervally(5, Duration.ofMinutes(15)).build()
 
 
-    /**
-     * @param sessionToken the raw session token from the client's cookie
-     * @return the session's owner
-     * @throws rosemary_and_thyme.backend.exceptions.SessionException if the session is
-     * missing, revoked, or expired - see [SessionService.validateSession]
+    /** Validates a session token through the session service.
+     * @param sessionToken the raw session token.
+     * @return the authenticated user.
+     * @throws rosemary_and_thyme.backend.exceptions.SessionException if the session is invalid.
      */
     fun validateSession(sessionToken: String): UsersRecord =
 
         sessionService.validateSession(sessionToken)
 
 
-    /**
-     * Authenticates a user by email/password and starts a new session for them.
-     *
-     * @param email the account's email
-     * @param password the account's plaintext password, checked against the stored BCrypt hash
-     * @return a raw session token for the new session
-     * @throws TooManyRequestsException if this email has exceeded [loginLimit]
-     * @throws UserCredentialsException if the email is unknown or the password
-     * doesn't match (the same generic message is used for both, so failed attempts
-     * can't be used to enumerate which emails are registered)
-     * @throws GoogleAccountException if the account exists but has no password to
-     * check against - a Google-only account (see
-     * [rosemary_and_thyme.backend.repositories.auth.UserRepository.insertOauthUser]).
-     * Deliberately distinct from [UserCredentialsException]: `routes/auth/login.tsx`
-     * catches this specifically and redirects straight into the Google sign-in flow
-     * instead of showing a credentials error, regardless of what was typed in the
-     * password field - this does mean a Google-registered email is now distinguishable
-     * from a wrong-password attempt on some other account, a deliberate trade-off for
-     * that UX.
-     * @throws EmailNotVerifiedException if the account exists but its email isn't verified yet
+    /** Authenticates a verified password-based account.
+     * @param email the account email.
+     * @param password the submitted plaintext password.
+     * @return a new raw session token.
+     * @throws UserCredentialsException if the credentials are invalid.
+     * @throws EmailNotVerifiedException if the account email is unverified.
+     * @throws GoogleAccountException if the account has no password.
      */
     fun login(email: String, password: String): String {
 
@@ -100,15 +81,9 @@ class AuthService(
         return sessionToken
     }
 
-    /**
-     * Creates a new, unverified account and sends it a verification email.
-     *
-     * No longer logs the user in directly - the account exists but stays unusable
-     * until verifyEmail() confirms the address, so a session is only issued there.
-     *
-     * @param registerRequest the new account's username/email/password
-     * @throws rosemary_and_thyme.backend.exceptions.UserAlreadyExistsException if the
-     * email is already registered
+    /** Registers an unverified password-based account.
+     * @param registerRequest the username, email, and plaintext password.
+     * @throws rosemary_and_thyme.backend.exceptions.UserAlreadyExistsException if the email is registered.
      */
     fun register(registerRequest: RegisterRequest) {
 
@@ -118,54 +93,38 @@ class AuthService(
         emailVerificationService.issueVerificationToken(user.id.dbNotNull("id"), user.email.dbNotNull("email"))
     }
 
-    /**
-     * Confirms an account's email from its verification token, then immediately logs
-     * the user in.
-     *
-     * @param token the raw verification token from the emailed link
-     * @return a fresh session token so the user lands logged-in right after verifying
-     * @throws rosemary_and_thyme.backend.exceptions.InvalidTokenException if the token
-     * is unknown, already used, or expired - see [EmailVerificationService.verify]
+    /** Verifies an account email and creates a session.
+     * @param token the raw verification token.
+     * @return a new raw session token.
+     * @throws rosemary_and_thyme.backend.exceptions.InvalidTokenException if the token is invalid.
      */
     fun verifyEmail(token: String): String {
         val userId: UUID = emailVerificationService.verify(token)
         return sessionService.createSession(userId)
     }
 
-    /**
-     * Re-sends a verification email. Delegates entirely to
-     * [EmailVerificationService.resend] - see there for the rate-limiting and
-     * email-enumeration-avoidance behavior.
-     *
-     * @param email the email to resend a verification link to
+    /** Sends a new verification email when applicable.
+     * @param email the account email.
+     * @throws TooManyRequestsException if the email exceeded its resend limit.
      */
     fun resendVerificationEmail(email: String) {
         emailVerificationService.resend(email)
     }
 
-    /**
-     * @param sessionToken the raw session token to revoke (see [SessionService.revokeSession])
+    /** Logs a user out by revoking their session.
+     * @param sessionToken the raw session token.
      */
     fun logout(sessionToken: String) {
         sessionService.revokeSession(sessionToken)
     }
 
-    /**
-     * Changes an already-logged-in user's password: checks [currentPassword] against
-     * the stored hash, then replaces it and rotates every session for the account
-     * (see [SessionService.revokeAllSessions]) - including the one that made this very
-     * request - issuing a fresh one so the caller stays logged in while any other
-     * session elsewhere is cut off. Rate-limited per user (not per email, since the
-     * caller is already authenticated) to slow down brute-forcing [currentPassword].
-     *
-     * @param user the authenticated caller
-     * @param currentPassword checked against the stored BCrypt hash
-     * @param newPassword the new plaintext password to hash and store
-     * @return a fresh raw session token for the request that just changed the password
-     * @throws TooManyRequestsException if this account has exceeded [changePasswordLimit]
-     * @throws GoogleAccountException if the account has no password to check against
-     * (a Google-only account)
-     * @throws UserCredentialsException if [currentPassword] doesn't match
+    /** Changes a user's password and rotates all of their sessions.
+     * @param user the authenticated user changing their password.
+     * @param currentPassword the current plaintext password.
+     * @param newPassword the replacement plaintext password.
+     * @return a fresh session token for the caller.
+     * @throws UserCredentialsException if the current password is incorrect.
+     * @throws GoogleAccountException if the account has no password.
      */
     fun changePassword(user: UsersRecord, currentPassword: String, newPassword: String): String {
         val userId = user.id.dbNotNull("id")
@@ -187,28 +146,19 @@ class AuthService(
         return sessionService.createSession(userId)
     }
 
-    /**
-     * Starts the "forgot password" flow. Delegates entirely to
-     * [PasswordResetService.requestReset] - see there for the rate-limiting and
-     * email-enumeration-avoidance behavior (including staying silent for a
-     * Google-only account).
-     *
-     * @param email the email to send a reset link to
+    /** Starts the password-reset flow.
+     * @param email the account email.
+     * @throws TooManyRequestsException if the email exceeded its reset-request limit.
      */
     fun requestPasswordReset(email: String) {
         passwordResetService.requestReset(email)
     }
 
-    /**
-     * Confirms a password reset from its emailed token, then rotates every session
-     * for the account (same reasoning as [changePassword]) and logs the caller in
-     * with a fresh one.
-     *
-     * @param token the raw reset token from the emailed link
-     * @param newPassword the new plaintext password to hash and store
-     * @return a fresh raw session token so the user lands logged-in right after resetting
-     * @throws rosemary_and_thyme.backend.exceptions.InvalidTokenException if the token
-     * is unknown, already used, or expired - see [PasswordResetService.confirmReset]
+    /** Resets a password and rotates every existing session.
+     * @param token the raw reset token.
+     * @param newPassword the replacement plaintext password.
+     * @return a fresh session token.
+     * @throws rosemary_and_thyme.backend.exceptions.InvalidTokenException if the token is invalid.
      */
     fun resetPassword(token: String, newPassword: String): String {
         val userId = passwordResetService.confirmReset(token, newPassword)

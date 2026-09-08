@@ -21,22 +21,7 @@ import rosemary_and_thyme.backend.services.auth.SessionCookieFactory
 import rosemary_and_thyme.backend.services.auth.sanitizeRedirectPath
 
 
-/**
- * Auth endpoints: register -> verify-email -> login -> logout, plus [startGoogleLogin]
- * (Google sign-in's callback is handled separately, by Spring Security's own
- * `oauth2Login()` machinery and [rosemary_and_thyme.backend.configurations.GoogleOidcSuccessHandler] -
- * neither goes through this controller) and the parallel "forgot password" pair,
- * [requestPasswordReset]/[confirmPasswordReset]. Changing your password while already
- * logged in is a separate, session-authenticated endpoint instead -
- * `PUT /user/password`, on [UserController].
- *
- * The session itself is a plain random token (see
- * [rosemary_and_thyme.backend.services.auth.SessionService]) carried by an
- * `httpOnly`/`Secure` cookie ("session_cookie") rather than a bearer header - every
- * endpoint here that establishes or ends a session sets that cookie via [cookies]
- * instead of returning the token in the body. Requests are authenticated from that
- * cookie by [rosemary_and_thyme.backend.filters.SessionAuthFilter].
- */
+/** Exposes registration, login, logout, verification, password-reset, and Google-login endpoints. */
 @RestController
 @RequestMapping("/auth")
 class AuthController(
@@ -44,12 +29,9 @@ class AuthController(
     private val cookies: SessionCookieFactory
 ) {
 
-    /**
-     * Creates the account and emails a verification link. Does not log the user in -
-     * see [AuthService.register] for why.
-     *
-     * @param request the new account's username/email/password
-     * @return 201 Created with an empty body
+    /** Registers an account and sends its verification email.
+     * @param request the registration details.
+     * @return `201 Created` after registration.
      */
     @PostMapping("/register")
     fun register(@RequestBody request: RegisterRequest): ResponseEntity<Unit> {
@@ -62,12 +44,9 @@ class AuthController(
 
     }
 
-    /**
-     * Confirms an account's email from the token in the verification link, and logs
-     * the user in immediately afterward.
-     *
-     * @param request the raw verification token from the link
-     * @return 200 OK with the new session cookie attached
+    /** Verifies an email token and sets a session cookie.
+     * @param request the verification token.
+     * @return `200 OK` with a new session cookie.
      */
     @PostMapping("/verify-email")
     fun verifyEmail(@RequestBody request: VerifyEmailRequest): ResponseEntity<Unit> {
@@ -79,13 +58,9 @@ class AuthController(
             .build()
     }
 
-    /**
-     * Re-sends a verification email, e.g. because the first one expired or was lost.
-     * Always responds 200 regardless of whether the email is registered or already
-     * verified - see [rosemary_and_thyme.backend.services.auth.EmailVerificationService.resend].
-     *
-     * @param request the email to resend the verification link to
-     * @return 200 OK with an empty body
+    /** Requests another verification email.
+     * @param request the account email.
+     * @return `200 OK` whether or not an email is sent.
      */
     @PostMapping("/verify-email/resend")
     fun resendVerificationEmail(@RequestBody request: ResendVerificationRequest): ResponseEntity<Unit> {
@@ -98,11 +73,9 @@ class AuthController(
     }
 
 
-    /**
-     * Logs an existing, verified user in.
-     *
-     * @param request the account's email/password
-     * @return 200 OK with the new session cookie attached
+    /** Logs in a verified password-based account.
+     * @param request the email and password.
+     * @return `200 OK` with a new session cookie.
      */
     @PostMapping("/login")
     fun login(@RequestBody request: LoginRequest): ResponseEntity<Unit> {
@@ -114,19 +87,9 @@ class AuthController(
             .build()
     }
 
-    /**
-     * Entry point for "Continue with Google" - not itself the OAuth2 redirect (that's
-     * Spring Security's own `/oauth2/authorization/google`, auto-configured from the
-     * `google` client registration in application.yaml), just a thin hop in front of
-     * it that stashes [redirect] in a short-lived cookie first. A plain query param
-     * on this URL wouldn't survive the round trip through Google and back on its
-     * own - [rosemary_and_thyme.backend.configurations.GoogleOidcSuccessHandler]
-     * reads the cookie back once Google's redirected here.
-     *
-     * @param redirect where to send the browser after a successful Google sign-in,
-     * sanitized via [sanitizeRedirectPath] before being trusted with anything
-     * @return 302 to Spring Security's own Google authorization endpoint, with the
-     * redirect cookie attached
+    /** Begins the Google OAuth2 login flow.
+     * @param redirect the frontend path to restore after login.
+     * @return `302 Found` to Spring Security's Google authorization endpoint.
      */
     @GetMapping("/google")
     fun startGoogleLogin(@RequestParam(required = false) redirect: String?): ResponseEntity<Unit> {
@@ -138,14 +101,9 @@ class AuthController(
     }
 
 
-    /**
-     * Starts the "forgot password" flow by emailing a reset link. Always responds 200
-     * regardless of whether the email is registered, already verified, or belongs to a
-     * Google-only account - see [AuthService.requestPasswordReset] /
-     * [rosemary_and_thyme.backend.services.auth.PasswordResetService.requestReset].
-     *
-     * @param request the email to send a reset link to
-     * @return 200 OK with an empty body
+    /** Requests a password-reset email.
+     * @param request the account email.
+     * @return `200 OK` whether or not an email is sent.
      */
     @PostMapping("/password-reset/request")
     fun requestPasswordReset(@RequestBody request: PasswordResetRequestRequest): ResponseEntity<Unit> {
@@ -153,13 +111,9 @@ class AuthController(
         return ResponseEntity.ok().build()
     }
 
-    /**
-     * Confirms a password reset from the token in the emailed link, and logs the user
-     * in immediately afterward with a fresh session (every other existing session for
-     * the account is revoked first - see [AuthService.resetPassword]).
-     *
-     * @param request the raw reset token plus the new password
-     * @return 200 OK with the new session cookie attached
+    /** Resets a password and sets a fresh session cookie.
+     * @param request the reset token and replacement password.
+     * @return `200 OK` with a new session cookie.
      */
     @PostMapping("/password-reset/confirm")
     fun confirmPasswordReset(@RequestBody request: PasswordResetConfirmRequest): ResponseEntity<Unit> {
@@ -170,13 +124,9 @@ class AuthController(
             .build()
     }
 
-    /**
-     * Ends the current session. A missing/absent cookie is treated the same as a
-     * successful logout (nothing to revoke) rather than an error - see
-     * [rosemary_and_thyme.backend.services.auth.SessionService.revokeSession].
-     *
-     * @param sessionCookie the current session token, if any
-     * @return 200 OK with the session cookie cleared (empty value, immediate expiry)
+    /** Logs out the current session.
+     * @param sessionCookie the optional session cookie.
+     * @return `200 OK` with an expired session cookie.
      */
     @PostMapping("/logout")
     fun logout(@CookieValue(value = "session_cookie", required = false) sessionCookie:String?): ResponseEntity<Unit> {

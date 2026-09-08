@@ -25,20 +25,17 @@ import rosemary_and_thyme.backend.models.recipes.SetPrivateRequest
 import rosemary_and_thyme.backend.services.recipes.RecipeService
 import java.util.UUID
 
-/**
- * Controller layer.
- */
+/** Exposes recipe retrieval, editing, search, visibility, and like endpoints. */
 
 @RestController
 @RequestMapping("/recipe")
 class RecipeController(private val recipeService: RecipeService) {
 
-    /**
- * Publicly readable - permitted without auth in the associated behavior.
- * @param id the recipe's id.
- * @param user the authenticated caller, or `null` for an anonymous viewer.
- * @return 200 OK with the full [RecipeDTO], or a 404 problem-detail body (via.
- */
+    /** Returns a recipe when the caller may view it.
+     * @param id the recipe id.
+     * @param user the optional authenticated caller.
+     * @return `200 OK` with the recipe.
+     */
     @GetMapping("/{id}")
     fun getRecipeById(
         @PathVariable id: UUID,
@@ -48,14 +45,12 @@ class RecipeController(private val recipeService: RecipeService) {
         return ResponseEntity.ok(recipe)
     }
 
-    /**
- * Creates or updates a recipe (upsert - see [rosemary_and_thyme.backend.repositories.recipes.RecipeRepository.upsertRecipeBase]).
- * @param id the recipe's id (path segment; must match [dto]'s own id)
- * @param dto the recipe's full JSON body, under the "recipe" part.
- * @param allParts every multipart part of the request, including "recipe" and each.
- * @param user the authenticated caller, checked as the recipe's owner.
- * @return 200 OK with the saved recipe, re-fetched so the response reflects the.
- */
+    /** Creates a recipe from multipart recipe data and image files.
+     * @param dto the submitted recipe state.
+     * @param allParts all multipart request parts.
+     * @param user the authenticated owner.
+     * @return `200 OK` with the persisted recipe.
+     */
     @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun createRecipe(
         @RequestPart("recipe") dto: RecipeWriteDTO,
@@ -64,6 +59,13 @@ class RecipeController(private val recipeService: RecipeService) {
     ): ResponseEntity<RecipeDTO> =
         ResponseEntity.ok(recipeService.createRecipe(dto, imageParts(allParts), user))
 
+    /** Updates an existing recipe from multipart recipe data and image files.
+     * @param id the recipe id.
+     * @param dto the submitted recipe state.
+     * @param allParts all multipart request parts.
+     * @param user the authenticated owner.
+     * @return `200 OK` with the persisted recipe.
+     */
     @PutMapping("/{id}", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun saveRecipe(
         @PathVariable id: UUID,
@@ -71,13 +73,15 @@ class RecipeController(private val recipeService: RecipeService) {
         @RequestParam allParts: MultiValueMap<String, MultipartFile>,
         @AuthenticationPrincipal user: UsersRecord
     ): ResponseEntity<RecipeDTO> {
-        /**
- * Filters recipe part from allParts.
- */
         val recipe = recipeService.saveRecipe(id, dto, imageParts(allParts), user)
         return ResponseEntity.ok(recipe)
     }
 
+    /** Extracts image files keyed by their temporary image ids.
+     * @param allParts every multipart request part.
+     * @return image parts keyed by UUID.
+     * @throws IllegalArgumentException if an image key contains multiple files.
+     */
     private fun imageParts(allParts: MultiValueMap<String, MultipartFile>): Map<UUID, MultipartFile> {
         require(allParts.filterKeys { it != "recipe" }.values.all { it.size == 1 }) {
             "Each image part must have exactly one file"
@@ -88,13 +92,12 @@ class RecipeController(private val recipeService: RecipeService) {
             .mapValues { it.value.single() }
     }
 
-    /**
- * Fuzzy-searches recipes across all users by name (trigram similarity - see.
- * @param q optional name filter; when omitted, every recipe is eligible, still.
- * @param userId optional filter to only this user's recipes.
- * @param cursor `null` for the first page.
- * @return 200 OK with a page of matching recipes as feed cards, most-liked first.
- */
+    /** Searches public recipes using the global feed order.
+     * @param q the optional fuzzy name query.
+     * @param userId the optional owner filter.
+     * @param cursor the optional previous-page cursor.
+     * @return `200 OK` with one recipe-feed page.
+     */
     @GetMapping("/search")
     fun searchRecipes(
         @RequestParam(required = false) q: String?,
@@ -103,12 +106,11 @@ class RecipeController(private val recipeService: RecipeService) {
     ): ResponseEntity<RecipeFeedPage> =
         ResponseEntity.ok(recipeService.searchRecipeFeed(q, userId, orderByLikes = true, excludePrivate = true, cursor = cursor))
 
-    /**
- * Likes a recipe on the caller's behalf. Not in the `permitAll()` list in the associated behavior.
- * @param id the recipe to like.
- * @param user the authenticated caller.
- * @return 200 OK with the caller's new like state and the recipe's up-to-date count.
- */
+    /** Adds the caller's like to a recipe.
+     * @param id the recipe id.
+     * @param user the authenticated caller.
+     * @return `200 OK` with the updated like state.
+     */
     @PostMapping("/{id}/like")
     fun likeRecipe(
         @PathVariable id: UUID,
@@ -116,12 +118,11 @@ class RecipeController(private val recipeService: RecipeService) {
     ): ResponseEntity<LikeStatusDTO> =
         ResponseEntity.ok(recipeService.likeRecipe(id, user))
 
-    /**
- * Removes the caller's like from a recipe. Same auth/idempotency notes as.
- * @param id the recipe to unlike.
- * @param user the authenticated caller.
- * @return 200 OK with the caller's new like state and the recipe's up-to-date count.
- */
+    /** Removes the caller's like from a recipe.
+     * @param id the recipe id.
+     * @param user the authenticated caller.
+     * @return `200 OK` with the updated like state.
+     */
     @DeleteMapping("/{id}/like")
     fun unlikeRecipe(
         @PathVariable id: UUID,
@@ -129,12 +130,11 @@ class RecipeController(private val recipeService: RecipeService) {
     ): ResponseEntity<LikeStatusDTO> =
         ResponseEntity.ok(recipeService.unlikeRecipe(id, user))
 
-    /**
- * Deletes a recipe (and every image it had) on the caller's behalf. Not in the requested value.
- * @param id the recipe to delete.
- * @param user the authenticated caller.
- * @return 204 No Content on success.
- */
+    /** Deletes a recipe owned by the caller.
+     * @param id the recipe id.
+     * @param user the authenticated caller.
+     * @return `204 No Content` after deletion.
+     */
     @DeleteMapping("/{id}")
     fun deleteRecipe(
         @PathVariable id: UUID,
@@ -144,13 +144,12 @@ class RecipeController(private val recipeService: RecipeService) {
         return ResponseEntity.noContent().build()
     }
 
-    /**
- * Toggles a recipe's private/public flag on the caller's behalf - the dashboard's.
- * @param id the recipe to update.
- * @param request the new `isPrivate` value.
- * @param user the authenticated caller, checked as the recipe's owner.
- * @return 200 OK with an empty body.
- */
+    /** Changes a recipe's private visibility flag.
+     * @param id the recipe id.
+     * @param request the requested visibility.
+     * @param user the authenticated caller.
+     * @return `200 OK` after updating visibility.
+     */
     @PatchMapping("/{id}/private")
     fun setRecipePrivate(
         @PathVariable id: UUID,

@@ -2,9 +2,7 @@ package rosemary_and_thyme.backend.models.recipes
 
 import java.util.UUID
 
-/**
- * Client-controlled recipe fields. Server-owned metadata belongs only to [RecipeDTO].
- */
+/** Client-controlled recipe fields. Server-owned metadata belongs only to [RecipeDTO]. */
 data class RecipeWriteDTO(
     val name: String,
     val description: String,

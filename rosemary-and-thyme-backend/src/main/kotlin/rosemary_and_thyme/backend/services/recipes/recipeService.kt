@@ -2,34 +2,27 @@ package rosemary_and_thyme.backend.services.recipes
 
 import com.cloudinary.Cloudinary
 import com.cloudinary.utils.ObjectUtils
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
 import rosemary_and_thyme.backend.exceptions.ForbiddenException
+import rosemary_and_thyme.backend.exceptions.RecipeValidationException
 import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.IngredientsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.InstructionsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.RecipesRecord
 import rosemary_and_thyme.backend.models.recipes.LikeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
-import rosemary_and_thyme.backend.models.recipes.RecipeFeedDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeFeedPage
 import rosemary_and_thyme.backend.models.recipes.RecipeWriteDTO
 import rosemary_and_thyme.backend.repositories.dbNotNull
 import rosemary_and_thyme.backend.repositories.recipes.RecipeRepository
-import java.util.NoSuchElementException
-import java.util.UUID
+import java.util.*
 
-/**
- * Service layer.
- */
+/** Coordinates recipe retrieval, persistence, images, feeds, and likes. */
 
 @Service
 class RecipeService(
@@ -52,9 +45,9 @@ class RecipeService(
         )
     }
 
-    /**
- * Deletes a collection of images from Cloudinary and logs failures.
- */
+    /** Deletes remote Cloudinary images and logs failed attempts.
+     * @param urls the delivery URLs to delete.
+     */
     private fun destroyCloudinaryImages(urls: Collection<String>) {
         urls.forEach { url ->
             val publicId = RecipeUtils.extractPublicId(url)
@@ -69,13 +62,12 @@ class RecipeService(
         }
     }
 
-    /**
- * Fetches a recipe and assembles it into a [RecipeDTO].
- * @param id the recipe's id.
- * @param currentUserId the requesting caller's id, or `null` for an anonymous caller.
- * @return the assembled [RecipeDTO].
- * @throws NoSuchElementException if the recipe does not exist or is private to another user.
- */
+    /** Fetches a recipe and assembles its complete DTO.
+     * @param id the recipe id.
+     * @param currentUserId the optional requesting user id.
+     * @return the assembled recipe.
+     * @throws NoSuchElementException if the recipe is missing or private to another user.
+     */
     fun findRecipeById(id: UUID, currentUserId: UUID? = null): RecipeDTO = runBlocking {
 
         val recipeDeferred: Deferred<RecipesRecord?> = async(Dispatchers.IO) { recipeRepository.selectRecipeBase(id) }
@@ -89,9 +81,6 @@ class RecipeService(
             async(Dispatchers.IO) { recipeRepository.hasUserLikedRecipe(id, it) }
         }
 
-        /**
- * Waits for the async calls.
- */
         val recipe =
             recipeDeferred.await() ?: throw NoSuchElementException("The recipe you are looking for does not exist")
 
@@ -110,9 +99,6 @@ class RecipeService(
         val heroImages = heroImagesDeferred.await()
         val liked = likedDeferred?.await() ?: false
 
-        /**
- * We selectInstructionImages last because it needs to have access to instructionIds.
- */
         val instructionImages = recipeRepository.selectInstructionImages(instructions.mapNotNull { it.id })
 
         RecipeUtils.buildRecipeDTO(
@@ -126,14 +112,12 @@ class RecipeService(
 
     }
 
-    /**
- * Adds a like for [user] and returns the updated like state.
- * @param recipeId the recipe to like.
- * @param user the authenticated caller.
- * @return the caller's new like state and the recipe's up-to-date like count.
- * @throws NoSuchElementException if no recipe exists with this id, or it's private and [user] isn't its owner.
- * @throws ForbiddenException if [user] is the recipe's own owner.
- */
+    /** Adds a user's like to a recipe.
+     * @param recipeId the recipe to like.
+     * @param user the authenticated caller.
+     * @return the updated like state and count.
+     * @throws ForbiddenException if the caller owns the recipe.
+     */
     @Transactional
     fun likeRecipe(recipeId: UUID, user: UsersRecord): LikeStatusDTO {
         val recipe = recipeRepository.selectRecipeBase(recipeId)
@@ -155,13 +139,11 @@ class RecipeService(
         return LikeStatusDTO(liked = true, likes = recipeRepository.selectLikesCount(recipeId))
     }
 
-    /**
- * Removes [user]'s like from a recipe. Repeating the operation is safe.
- * @param recipeId the recipe to unlike.
- * @param user the authenticated caller.
- * @return the caller's new like state and the recipe's up-to-date like count.
- * @throws NoSuchElementException if no recipe exists with this id.
- */
+    /** Removes a user's like from a recipe.
+     * @param recipeId the recipe to unlike.
+     * @param user the authenticated caller.
+     * @return the updated like state and count.
+     */
     @Transactional
     fun unlikeRecipe(recipeId: UUID, user: UsersRecord): LikeStatusDTO {
         recipeRepository.selectRecipeBase(recipeId)
@@ -174,13 +156,11 @@ class RecipeService(
         return LikeStatusDTO(liked = false, likes = recipeRepository.selectLikesCount(recipeId))
     }
 
-    /**
- * Deletes a recipe and its associated images after checking ownership.
- * @param recipeId the recipe to delete.
- * @param user the authenticated caller.
- * @throws NoSuchElementException if no recipe exists with this id.
- * @throws ForbiddenException if [user] is not the recipe's owner.
- */
+    /** Deletes a recipe and its remote images.
+     * @param recipeId the recipe to delete.
+     * @param user the authenticated owner.
+     * @throws ForbiddenException if the caller does not own the recipe.
+     */
     fun deleteRecipe(recipeId: UUID, user: UsersRecord) {
         val recipe = recipeRepository.selectRecipeBase(recipeId)
             ?: throw NoSuchElementException("The recipe you are looking for does not exist")
@@ -194,23 +174,20 @@ class RecipeService(
         destroyCloudinaryImages(images.values)
     }
 
-    /**
- * Deletes every recipe owned by [user], including associated remote images.
- * @param user the account being purged, also the owner checked by each [deleteRecipe] call.
- */
+    /** Deletes every recipe owned by a user.
+     * @param user the account whose recipes are deleted.
+     */
     fun deleteAllRecipesForUser(user: UsersRecord) {
         val recipeIds = recipeRepository.selectAllRecipeIds(user.id.dbNotNull("id"))
         recipeIds.forEach { deleteRecipe(it, user) }
     }
 
-    /**
- * Updates a recipe's visibility after checking ownership.
- * @param recipeId the recipe to update.
- * @param isPrivate the new value.
- * @param user the authenticated caller, checked as the recipe's owner.
- * @throws NoSuchElementException if no recipe exists with this id.
- * @throws ForbiddenException if [user] is not the recipe's owner.
- */
+    /** Updates a recipe's visibility.
+     * @param recipeId the recipe to update.
+     * @param isPrivate the requested visibility.
+     * @param user the authenticated owner.
+     * @throws ForbiddenException if the caller does not own the recipe.
+     */
     fun setRecipePrivate(recipeId: UUID, isPrivate: Boolean, user: UsersRecord) {
         val recipe = recipeRepository.selectRecipeBase(recipeId)
             ?: throw NoSuchElementException("The recipe you are looking for does not exist")
@@ -222,17 +199,14 @@ class RecipeService(
         recipeRepository.updatePrivate(recipeId, isPrivate)
     }
 
-    /**
- * Creates or updates a recipe and uploads its new images.
- * @param recipe the recipe's full desired state, as submitted by the client.
- * @param imageFiles new image files keyed by their temporary image IDs.
- * @param user the authenticated caller.
- * @return the saved recipe with persisted IDs and image URLs.
- * @throws rosemary_and_thyme.backend.exceptions.RecipeValidationException if [recipe] violates a [RecipeValidation] limit.
- * @throws ForbiddenException if [user] is not the owner of an existing recipe.
- */
-    fun createRecipe(recipe: RecipeWriteDTO, imageFiles: Map<UUID, MultipartFile>, user: UsersRecord): RecipeDTO =
-        saveNewRecipe(recipe, imageFiles, user)
+    /** Updates an existing recipe and uploads its new images.
+     * @param recipeId the recipe to update.
+     * @param recipe the complete submitted recipe state.
+     * @param imageFiles uploaded files keyed by temporary image id.
+     * @param user the authenticated owner.
+     * @return the persisted recipe.
+     * @throws ForbiddenException if the caller does not own the recipe.
+     */
 
     fun saveRecipe(
         recipeId: UUID,
@@ -252,16 +226,18 @@ class RecipeService(
         saveRecipeInternal(recipeId, recipe, imageFiles, user)
     }
 
-    private fun saveNewRecipe(
-        recipe: RecipeWriteDTO,
-        imageFiles: Map<UUID, MultipartFile>,
-        user: UsersRecord
-    ): RecipeDTO = runBlocking {
+    /** Creates a recipe and uploads its images.
+     * @param recipe the complete submitted recipe state.
+     * @param imageFiles uploaded files keyed by temporary image id.
+     * @param user the authenticated owner.
+     * @return the persisted recipe.
+     */
+    fun createRecipe(recipe: RecipeWriteDTO, imageFiles: Map<UUID, MultipartFile>, user: UsersRecord): RecipeDTO {
         RecipeValidation.validate(recipe)
-        saveRecipeInternal(null, recipe, imageFiles, user)
+        return saveRecipeInternal(null,recipe,imageFiles,user)
     }
 
-    private suspend fun saveRecipeInternal(
+    private  fun saveRecipeInternal(
         recipeId: UUID?,
         recipe: RecipeWriteDTO,
         imageFiles: Map<UUID, MultipartFile>,
@@ -284,8 +260,7 @@ class RecipeService(
             val existingImages = recipeId?.let { recipeRepository.selectAllImagesForRecipe(it) } ?: emptyMap()
             val deletedImages = existingImages.filterKeys { it !in recipe.images }
 
-            val uploaded = withContext(Dispatchers.IO) {
-                newImages.map { (tempId, _) ->
+            val uploaded = newImages.map { (tempId, _) ->
                     val file = imageFiles[tempId]!!
                     val result = cloudinary.uploader().upload(
                         file.bytes,
@@ -293,7 +268,7 @@ class RecipeService(
                     )
                     tempId to result["secure_url"].toString()
                 }
-            }
+
 
             uploadedUrls.addAll(uploaded)
 
@@ -306,59 +281,54 @@ class RecipeService(
             val persistedId = recipePersistenceService.save(recipeId, recipe.copy(images = uploadedImages), user)
 
             // The DB transaction has committed. Only now can old remote files be removed.
-            withContext(Dispatchers.IO) { destroyCloudinaryImages(deletedImages.values) }
+             destroyCloudinaryImages(deletedImages.values)
 
             findRecipeById(persistedId, user.id)
 
         } catch (e: Exception) {
-            /**
- * rollback for failed database save.
- */
+            /** rollback for failed database save. */
             if (uploadedUrls.isNotEmpty()) {
-                withContext(Dispatchers.IO) {
-                    destroyCloudinaryImages(uploadedUrls.map { it.second })
-                }
+               destroyCloudinaryImages(uploadedUrls.map { it.second })
             }
             throw e
         }
     }
 
-    /**
- * Persists a recipe (with already-uploaded image urls) across all of its tables in the associated behavior.
- * @param recipe the recipe to persist; [recipe.images][RecipeDTO.images] must.
- * @param user the recipe's owner, used only when inserting a brand-new recipe.
- * @return the recipe's id (existing id if updated, DB-generated id if newly inserted)
- */
+    /** Validates image metadata and multipart files before saving.
+     * @param recipe the submitted recipe state.
+     * @param recipeId the existing recipe id, or `null` for a new recipe.
+     * @param imageFiles uploaded files keyed by temporary image id.
+     * @throws RecipeValidationException if image metadata or formats are invalid.
+     */
     private fun validateImageFiles(recipe: RecipeWriteDTO, recipeId: UUID?, imageFiles: Map<UUID, MultipartFile>) {
         val existingImages = recipeId?.let { recipeRepository.selectAllImagesForRecipe(it) } ?: emptyMap()
         if (!imageFiles.keys.all { it in recipe.images }) {
-            throw rosemary_and_thyme.backend.exceptions.RecipeValidationException("Every uploaded file must be declared by the recipe")
+            throw RecipeValidationException("Every uploaded file must be declared by the recipe")
         }
         recipe.images.forEach { (id, image) ->
             val storedUrl = existingImages[id]
             if (storedUrl != null && image.url != storedUrl) {
-                throw rosemary_and_thyme.backend.exceptions.RecipeValidationException("Existing image URLs cannot be changed")
+                throw RecipeValidationException("Existing image URLs cannot be changed")
             }
             if (storedUrl == null && (image.url != null || id !in imageFiles)) {
-                throw rosemary_and_thyme.backend.exceptions.RecipeValidationException("New images must be uploaded as files")
+                throw RecipeValidationException("New images must be uploaded as files")
             }
         }
         imageFiles.values.forEach { file ->
             if (file.contentType !in setOf("image/jpeg", "image/png")) {
-                throw rosemary_and_thyme.backend.exceptions.RecipeValidationException("Only JPEG and PNG images are allowed")
+                throw RecipeValidationException("Only JPEG and PNG images are allowed")
             }
         }
     }
 
-    /**
- * Same filtering/ordering as [searchRecipes], but returns full feed cards (see.
- * @param q optional fuzzy name filter, see [RecipeRepository.selectRecipeFeed].
- * @param userId optional owner filter.
- * @param orderByLikes see [RecipeRepository.selectRecipesWithFilters].
- * @param excludePrivate see [searchRecipes].
- * @param cursor see [RecipeRepository.selectRecipeFeed].
- * @return a page of matching recipes as feed cards, each with its first hero.
- */
+    /** Returns one filtered and ordered recipe-feed page.
+     * @param q the optional fuzzy name query.
+     * @param userId the optional owner filter.
+     * @param orderByLikes whether to sort by likes.
+     * @param excludePrivate whether to omit private recipes.
+     * @param cursor the optional previous-page cursor.
+     * @return a recipe-feed page with hero images.
+     */
     fun searchRecipeFeed(
         q: String? = null,
         userId: UUID? = null,
@@ -371,12 +341,11 @@ class RecipeService(
         return page.copy(items = page.items.map { it.copy(heroImageUrl = heroImages[it.id]) })
     }
 
-    /**
- * The dashboard's "Liked Recipes" section: every recipe [userId] has liked, most.
- * @param userId the user whose likes to list.
- * @param cursor see [RecipeRepository.selectLikedRecipeFeed].
- * @return a page of liked recipes as feed cards, most recently liked first, plus.
- */
+    /** Returns one page of recipes liked by a user.
+     * @param userId the user whose likes are listed.
+     * @param cursor the optional previous-page cursor.
+     * @return a liked-recipe feed page with hero images.
+     */
     fun likedRecipeFeed(userId: UUID, cursor: String? = null): RecipeFeedPage {
         val page = recipeRepository.selectLikedRecipeFeed(userId, cursor)
         val heroImages = recipeRepository.selectFirstHeroImages(page.items.map { it.id })

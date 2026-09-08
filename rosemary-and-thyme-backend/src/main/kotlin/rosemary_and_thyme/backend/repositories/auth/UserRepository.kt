@@ -11,26 +11,25 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
+/** Provides database operations for application users. */
 @Repository
 class UserRepository(val dsl: DSLContext) {
 
-    /** @return the user with this email, or `null` if none exists */
+    /** Finds a user by email.
+     * @param email the email address to look up.
+     * @return the matching user, or `null` when none exists.
+     */
     fun selectUserByEmail(email: String): UsersRecord? =
         dsl.selectFrom(USERS)
             .where(USERS.EMAIL.eq(email))
             .fetchOne()
 
-    /**
-     * Inserts a new, unverified user.
-     *
-     * @param email must be unique; relies on the DB's unique constraint
-     * (`users_email_key`) rather than a prior existence check, so this can't race
-     * (see the caught [DataAccessException] below)
-     * @param password the already-hashed (BCrypt) password - never plaintext
-     * @param userName the display name
-     * @return the newly inserted row
-     * @throws UserAlreadyExistsException if [email] is already registered (translated
-     * from the Postgres unique-violation SQLSTATE `23505`)
+    /** Inserts a password-based user with an unverified email.
+     * @param email the unique account email.
+     * @param password the already-hashed password.
+     * @param userName the display name.
+     * @return the inserted user.
+     * @throws UserAlreadyExistsException if the email is already registered.
      */
     //TODO: add existing email check
     fun insertUser(email: String, password: String, userName: String): UsersRecord {
@@ -52,19 +51,11 @@ class UserRepository(val dsl: DSLContext) {
         }
     }
 
-    /**
-     * Inserts a new, already-verified user with no password - the Google sign-in
-     * counterpart of [insertUser] (see
-     * [rosemary_and_thyme.backend.services.auth.GoogleAuthService.resolveOrCreateUser],
-     * the only caller). Google has already verified the email, and there's no
-     * password to hash since an account like this only ever authenticates through
-     * Google - see [rosemary_and_thyme.backend.services.auth.AuthService.login]'s
-     * null-password guard for what stops a password login attempt against it.
-     *
-     * @param email must be unique, same constraint/race handling as [insertUser]
-     * @param userName the display name, taken from the Google profile
-     * @return the newly inserted row
-     * @throws UserAlreadyExistsException if [email] is already registered
+    /** Inserts a verified user without a password for OAuth sign-in.
+     * @param email the unique account email.
+     * @param userName the display name from the provider.
+     * @return the inserted user.
+     * @throws UserAlreadyExistsException if the email is already registered.
      */
     fun insertOauthUser(email: String, userName: String): UsersRecord {
 
@@ -85,13 +76,18 @@ class UserRepository(val dsl: DSLContext) {
         }
     }
 
-    /** @return the user with this id, or `null` if none exists */
+    /** Finds a user by id.
+     * @param userId the user id to look up.
+     * @return the matching user, or `null` when none exists.
+     */
     fun selectUserById(userId: UUID): UsersRecord? =
         dsl.selectFrom(USERS)
             .where(USERS.ID.eq(userId))
             .fetchOne()
 
-    /** Flips a user's `email_verified` flag to `true`. Called once, from [rosemary_and_thyme.backend.services.auth.EmailVerificationService.verify]. */
+    /** Marks a user's email as verified.
+     * @param userId the user to update.
+     */
     fun updateEmailVerified(userId: UUID) {
         dsl.update(USERS)
             .set(USERS.EMAIL_VERIFIED, true)
@@ -99,7 +95,10 @@ class UserRepository(val dsl: DSLContext) {
             .execute()
     }
 
-    /** Overwrites a user's stored password hash - used by both the authenticated change-password flow and the emailed reset-token flow. @param passwordHash the new, already-hashed (BCrypt) password */
+    /** Replaces a user's stored password hash.
+     * @param userId the user to update.
+     * @param passwordHash the new BCrypt hash.
+     */
     fun updatePassword(userId: UUID, passwordHash: String) {
         dsl.update(USERS)
             .set(USERS.PASSWORD, passwordHash)
@@ -107,7 +106,9 @@ class UserRepository(val dsl: DSLContext) {
             .execute()
     }
 
-    /** Marks a user's account for deletion 30 days from now (see [UsersRecord.deletionRequestedAt]'s column comment in db/schema.sql). */
+    /** Records that a user requested account deletion.
+     * @param userId the user to mark for deletion.
+     */
     fun updateDeletionRequestedAt(userId: UUID) {
         dsl.update(USERS)
             .set(USERS.DELETION_REQUESTED_AT, OffsetDateTime.now(ZoneOffset.UTC))
@@ -115,7 +116,9 @@ class UserRepository(val dsl: DSLContext) {
             .execute()
     }
 
-    /** Cancels a pending deletion request (the grace-period "undo"). No-op if none was pending. */
+    /** Cancels a pending account deletion request.
+     * @param userId the user whose deletion request is cleared.
+     */
     fun clearDeletionRequestedAt(userId: UUID) {
         dsl.update(USERS)
             .setNull(USERS.DELETION_REQUESTED_AT)
@@ -123,11 +126,9 @@ class UserRepository(val dsl: DSLContext) {
             .execute()
     }
 
-    /**
-     * @param cutoff accounts whose `deletion_requested_at` is older than this are due
-     * @return every account whose grace period has expired - see
-     * [rosemary_and_thyme.backend.services.auth.AccountDeletionService.purgeExpiredAccounts],
-     * the only caller
+    /** Lists users whose deletion grace period has elapsed.
+     * @param cutoff the latest deletion-request timestamp eligible for removal.
+     * @return users scheduled for permanent deletion.
      */
     fun selectUsersPendingHardDelete(cutoff: OffsetDateTime): List<UsersRecord> =
         dsl.selectFrom(USERS)
@@ -135,13 +136,8 @@ class UserRepository(val dsl: DSLContext) {
             .and(USERS.DELETION_REQUESTED_AT.lt(cutoff))
             .fetch()
 
-    /**
-     * Hard-deletes a user row. `ON DELETE CASCADE` takes every session, oauth
-     * identity, and email-verification/password-reset token with it - recipes are
-     * expected to already be gone by this point (see
-     * [rosemary_and_thyme.backend.services.auth.AccountDeletionService.purgeExpiredAccounts],
-     * which deletes them one by one first so their Cloudinary images are cleaned up
-     * too, something a raw cascade here can't do).
+    /** Permanently deletes a user row.
+     * @param userId the user to delete.
      */
     fun deleteUserById(userId: UUID) {
         dsl.deleteFrom(USERS)

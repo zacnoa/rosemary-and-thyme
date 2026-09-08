@@ -3,9 +3,7 @@ package rosemary_and_thyme.backend.services.recipes
 import rosemary_and_thyme.backend.exceptions.RecipeValidationException
 import rosemary_and_thyme.backend.models.recipes.RecipeWriteDTO
 
-/**
- * Server-side mirror of the frontend's client-side save checks.
- */
+/** Validates recipe write requests against server-side limits and references. */
 object RecipeValidation {
 
     const val MAX_INGREDIENTS = 50
@@ -14,19 +12,19 @@ object RecipeValidation {
     const val MAX_NAME_CHARS = 100
     const val MAX_IMAGES = 20
 
-    /**
- * Whitespace-delimited word count, ignoring leading/trailing/duplicate whitespace.
- */
+    /** Counts whitespace-separated words.
+     * @param text the text to count.
+     * @return the number of words.
+     */
     private fun wordCount(text: String): Int {
         val trimmed = text.trim()
         return if (trimmed.isEmpty()) 0 else trimmed.split(Regex("\\s+")).size
     }
 
-    /**
- * Checks [recipe] against every save limit and returns the human-readable reasons.
- * @param recipe the recipe as submitted by the client.
- * @return blocking reasons, in check order.
- */
+    /** Lists every validation failure in a recipe write request.
+     * @param recipe the submitted recipe state.
+     * @return human-readable blocking reasons.
+     */
     fun getBlockers(recipe: RecipeWriteDTO): List<String> {
         val blockers = mutableListOf<String>()
 
@@ -64,11 +62,10 @@ object RecipeValidation {
         return blockers
     }
 
-    /**
- * Validates [recipe], throwing on the first violated limit. Called at the very.
- * @param recipe the recipe to validate.
- * @throws RecipeValidationException with [getBlockers]'s first reason, if any.
- */
+    /** Validates a recipe write request.
+     * @param recipe the submitted recipe state.
+     * @throws RecipeValidationException if any validation rule fails.
+     */
     fun validate(recipe: RecipeWriteDTO) {
         val blockers = getBlockers(recipe)
         if (blockers.isNotEmpty()) {

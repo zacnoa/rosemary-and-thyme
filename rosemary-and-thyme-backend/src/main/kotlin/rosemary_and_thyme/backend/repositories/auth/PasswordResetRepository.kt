@@ -8,20 +8,13 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
-/**
- * Raw CRUD against `app_auth.password_reset_tokens`. Only ever stores/looks up a
- * token's *hash* - see [rosemary_and_thyme.backend.services.auth.hashToken] for why -
- * so nothing here ever sees a raw reset token. Structurally identical to
- * [EmailVerificationRepository], just against a different table/TTL (1 hour here vs
- * 24 hours for email verification - a reset link is more sensitive to leave valid
- * for long, and is normally used within minutes of being requested).
- */
+/** Provides database operations for hashed password-reset tokens. */
 @Repository
 class PasswordResetRepository(val dsl: DSLContext) {
 
-    /**
-     * @param userId the token's owner
-     * @param tokenHash the SHA-256 hash of the raw reset token
+    /** Stores a password-reset token hash for a user.
+     * @param userId the account requesting a reset.
+     * @param tokenHash the SHA-256 hash of the emailed token.
      */
     fun insertToken(userId: UUID, tokenHash: String) {
         dsl.insertInto(PASSWORD_RESET_TOKENS)
@@ -30,12 +23,9 @@ class PasswordResetRepository(val dsl: DSLContext) {
             .execute()
     }
 
-    /**
-     * Only returns the token if it hasn't been used yet and hasn't expired.
-     *
-     * @param tokenHash the SHA-256 hash of the raw token from the emailed link
-     * @return the matching, still-valid token row, or `null` if no row matches the
-     * hash, or it matches but is already used/expired
+    /** Finds an unused, unexpired reset token.
+     * @param tokenHash the SHA-256 hash to look up.
+     * @return the matching valid token, or `null` when it is absent, used, or expired.
      */
     fun selectValidToken(tokenHash: String): PasswordResetTokensRecord? =
         dsl.selectFrom(PASSWORD_RESET_TOKENS)
@@ -44,7 +34,9 @@ class PasswordResetRepository(val dsl: DSLContext) {
             .and(PASSWORD_RESET_TOKENS.EXPIRES_AT.gt(OffsetDateTime.now(ZoneOffset.UTC)))
             .fetchOne()
 
-    /** Marks a token as consumed, by setting `used_at` to now. */
+    /** Marks a reset token as used.
+     * @param id the token row to consume.
+     */
     fun updateTokenUsedAt(id: UUID) {
         dsl.update(PASSWORD_RESET_TOKENS)
             .set(PASSWORD_RESET_TOKENS.USED_AT, OffsetDateTime.now(ZoneOffset.UTC))
@@ -52,12 +44,8 @@ class PasswordResetRepository(val dsl: DSLContext) {
             .execute()
     }
 
-    /**
-     * Invalidates any outstanding tokens for a user before issuing a new one (called
-     * on every fresh request, so a stale link can't be used after a newer one was
-     * requested).
-     *
-     * @param userId invalidate every not-yet-used token belonging to this user
+    /** Marks every unused reset token for a user as used.
+     * @param userId the account whose outstanding tokens are invalidated.
      */
     fun updateTokensUsedByUserId(userId: UUID) {
         dsl.update(PASSWORD_RESET_TOKENS)

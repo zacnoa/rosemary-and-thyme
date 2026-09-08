@@ -8,17 +8,13 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
-/**
- * Raw CRUD against `app_auth.email_verification_tokens`. Only ever stores/looks up a
- * token's *hash* - see [rosemary_and_thyme.backend.services.auth.hashToken] for why -
- * so nothing here ever sees a raw verification token.
- */
+/** Provides database operations for hashed email-verification tokens. */
 @Repository
 class EmailVerificationRepository(val dsl: DSLContext) {
 
-    /**
-     * @param userId the token's owner
-     * @param tokenHash the SHA-256 hash of the raw verification token
+    /** Stores a verification token hash for a user.
+     * @param userId the account awaiting verification.
+     * @param tokenHash the SHA-256 hash of the emailed token.
      */
     fun insertToken(userId: UUID, tokenHash: String) {
         dsl.insertInto(EMAIL_VERIFICATION_TOKENS)
@@ -27,12 +23,9 @@ class EmailVerificationRepository(val dsl: DSLContext) {
             .execute()
     }
 
-    /**
-     * Only returns the token if it hasn't been used yet and hasn't expired.
-     *
-     * @param tokenHash the SHA-256 hash of the raw token from the emailed link
-     * @return the matching, still-valid token row, or `null` if no row matches the
-     * hash, or it matches but is already used/expired
+    /** Finds an unused, unexpired verification token.
+     * @param tokenHash the SHA-256 hash to look up.
+     * @return the matching valid token, or `null` when it is absent, used, or expired.
      */
     fun selectValidToken(tokenHash: String): EmailVerificationTokensRecord? =
         dsl.selectFrom(EMAIL_VERIFICATION_TOKENS)
@@ -41,7 +34,9 @@ class EmailVerificationRepository(val dsl: DSLContext) {
             .and(EMAIL_VERIFICATION_TOKENS.EXPIRES_AT.gt(OffsetDateTime.now(ZoneOffset.UTC)))
             .fetchOne()
 
-    /** Marks a token as consumed, by setting `used_at` to now. */
+    /** Marks a verification token as used.
+     * @param id the token row to consume.
+     */
     fun updateTokenUsedAt(id: UUID) {
         dsl.update(EMAIL_VERIFICATION_TOKENS)
             .set(EMAIL_VERIFICATION_TOKENS.USED_AT, OffsetDateTime.now(ZoneOffset.UTC))
@@ -49,11 +44,8 @@ class EmailVerificationRepository(val dsl: DSLContext) {
             .execute()
     }
 
-    /**
-     * Invalidates any outstanding tokens for a user before issuing a new one
-     * (called on resend, so a stale link can't be used after a fresh one was requested).
-     *
-     * @param userId invalidate every not-yet-used token belonging to this user
+    /** Marks every unused verification token for a user as used.
+     * @param userId the account whose outstanding tokens are invalidated.
      */
     fun updateTokensUsedByUserId(userId: UUID) {
         dsl.update(EMAIL_VERIFICATION_TOKENS)

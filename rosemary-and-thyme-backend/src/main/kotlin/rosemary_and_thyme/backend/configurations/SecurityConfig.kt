@@ -18,28 +18,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 import rosemary_and_thyme.backend.filters.RateLimitFilter
 import rosemary_and_thyme.backend.filters.SessionAuthFilter
 
-/**
- * Wires up CORS, CSRF, and the request pipeline's two custom filters
- * ([SessionAuthFilter], [RateLimitFilter]). This is the single source of truth for
- * which endpoints require authentication - see the `requestMatchers(...).permitAll()`
- * calls in [apiFilterChain].
- *
- * Two separate [SecurityFilterChain] beans, not one, deliberately:
- * [oauth2FilterChain] (`@Order(1)`, scoped via `securityMatcher` to just the Google
- * handshake paths) and [apiFilterChain] (`@Order(2)`, everything else - this app's own
- * stateless session-cookie API). Merely *configuring* `oauth2Login()` anywhere in a
- * chain makes Spring Security auto-install its own entry point (a redirect to
- * `/oauth2/authorization/google`) as that chain's app-wide default for every
- * unauthenticated request - silently turning what every frontend query function's
- * fetch call expects to be a plain JSON 401 (see e.g. `queries/getUser.ts`'s explicit
- * `401`/`403` check) into a redirect chain ending on Google's own HTML sign-in page.
- * An explicit `exceptionHandling.authenticationEntryPoint(...)` in the *same* chain
- * does not reliably override that default (confirmed empirically, contrary to what
- * Spring Security's own docs suggest a single-chain override should do) - keeping
- * `oauth2Login()` confined to its own narrowly-matched chain sidesteps the whole
- * problem instead of fighting it: [apiFilterChain] never configures `oauth2Login()`
- * at all, so its own exception handling is never touched by it in the first place.
- */
+/** Configures the application's CORS and Spring Security filter chains. */
 @Configuration
 @EnableWebSecurity
 class SecurityConfig(
@@ -49,14 +28,8 @@ class SecurityConfig(
     @Value($$"${app.frontend-url}") private val frontendUrl: String
 ) {
 
-    /**
-     * Restricts cross-origin requests to [frontendUrl] only, with credentials
-     * (cookies) allowed - required for the `session_cookie` cookie set by
-     * [rosemary_and_thyme.backend.controllers.AuthController] to actually be sent by
-     * the browser on cross-origin requests from the frontend. Shared by both filter
-     * chains below.
-     *
-     * @return the CORS configuration applied to every path (Spring's catch-all Ant pattern)
+    /** Configures CORS for frontend requests that include credentials.
+     * @return the CORS configuration source.
      */
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
@@ -72,20 +45,10 @@ class SecurityConfig(
         return source
     }
 
-    /**
-     * The Google sign-in handshake, and nothing else - `securityMatcher` means every
-     * other rule in this chain (including `oauth2Login`'s own auto-installed entry
-     * point) simply never applies to any other path. The `oauth2` prefix is where
-     * [rosemary_and_thyme.backend.controllers.AuthController.startGoogleLogin] sends
-     * the browser to kick the flow off; the `login/oauth2` prefix is Google's callback,
-     * handed to [googleOidcSuccessHandler] once Spring Security has validated the ID
-     * token itself (signature/issuer/audience/expiry against Google's own JWKS - none
-     * of it hand-rolled here).
-     *
-     * Both paths are `permitAll()` - there's no "authenticated" concept yet at this
-     * point, the caller is *becoming* authenticated by going through this flow.
-     *
-     * @return the configured [SecurityFilterChain] for the Google OAuth2 paths
+    /** Configures the Google OAuth2/OIDC callback filter chain.
+     * @param http the security builder.
+     * @return the Google OAuth2 filter chain.
+     * @throws Exception if Spring Security cannot build the chain.
      */
     @Bean
     @Order(1)
@@ -102,32 +65,10 @@ class SecurityConfig(
         return http.build()
     }
 
-    /**
-     * Everything else - this app's own stateless, `session_cookie`-based API:
-     * - CSRF disabled - the session cookie is `SameSite=Lax` (see
-     *   [rosemary_and_thyme.backend.services.auth.SessionCookieFactory.session] for
-     *   why it's `Lax` and not `Strict`), which still blocks it from being attached
-     *   to a cross-site POST/PUT/DELETE - a meaningful CSRF mitigation for browsers
-     *   that honor it, so the usual double-submit-token CSRF defense is skipped
-     * - `SessionCreationPolicy.STATELESS` - tells Spring Security not to use its own
-     *   `HttpSession`; auth state for each request comes entirely from
-     *   [SessionAuthFilter] validating the `session_cookie` value against the DB, not
-     *   from anything Spring Security stores server-side itself
-     * - public endpoints: login/register/verify-email(+resend)/google/password-reset(request+confirm), `GET /recipe/{id}`,
-     *   and `GET /recipe/search` (`/auth/google` itself just sets a cookie before
-     *   302-ing into the *other* chain's `/oauth2/authorization/google`;
-     *   `RecipeController.searchRecipes` never returns anything but id/name pairs, no
-     *   private data); everything else requires authentication
-     * - `exceptionHandling.authenticationEntryPoint` pinned to a plain 401 - see this
-     *   class's own KDoc for why that needs its own dedicated chain rather than living
-     *   alongside `oauth2Login()`
-     * - filter order: [rateLimitFilter] before [sessionFilter] before Spring Security's
-     *   own `UsernamePasswordAuthenticationFilter` - rate limiting rejects abusive
-     *   requests before any session validation work happens, and session validation
-     *   happens before Spring Security's built-in filter so `@AuthenticationPrincipal`
-     *   is already populated by the time authorization decisions are made
-     *
-     * @return the configured [SecurityFilterChain] for every other path
+    /** Configures the stateless API filter chain.
+     * @param http the security builder.
+     * @return the API filter chain.
+     * @throws Exception if Spring Security cannot build the chain.
      */
     @Bean
     @Order(2)
