@@ -1,0 +1,11 @@
+[project]
+name = "recipe-vision"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.141.1",
+    "ollama>=0.6.2",
+    "opencv-python-headless>=5.0.0.93",
+    "pydantic>=2.13.5",
+    "python-multipart>=0.0.32",
+]
