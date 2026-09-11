@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS public.recipes
     difficulty integer NOT NULL,
     portions integer NOT NULL,
     likes bigint NOT NULL DEFAULT 0,
+    times_made bigint NOT NULL DEFAULT 0,
     created_date date NOT NULL DEFAULT CURRENT_DATE,
     user_id uuid NOT NULL,
     user_name character varying(100) COLLATE pg_catalog."default" NOT NULL,

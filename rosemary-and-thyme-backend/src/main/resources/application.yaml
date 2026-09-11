@@ -40,7 +40,8 @@ app:
   # domain the session cookie is scoped to, so it's shared between api.<domain> and <domain>;
   # defaults to localhost so cookies still work for local dev
   cookie-domain: ${COOKIE_DOMAIN:localhost}
-
-
+  # The backend origin is reachable exclusively through Cloudflare, so its
+  # connecting-IP header is trusted by default. Override to false for a direct deployment.
+  trust-cloudflare-connecting-ip: ${TRUST_CLOUDFLARE_CONNECTING_IP:true}
 
 

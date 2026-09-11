@@ -97,6 +97,7 @@ class RecipeRepository(val dsl: DSLContext) {
                 .set(RECIPES.PORTIONS, dto.portions)
                 .set(RECIPES.SIDE_NOTES, dto.sideNotes)
                 .set(RECIPES.LIKES, 0)
+                .set(RECIPES.TIMES_MADE, 0)
                 .returningResult(RECIPES.ID)
                 .fetchOne()
                 ?.get(RECIPES.ID) ?: throw IllegalStateException("Failed to insert recipe")
@@ -744,5 +745,18 @@ private fun nameSimilarity(term: String) =
             .where(RECIPES.ID.eq(recipeId))
             .fetchOne(RECIPES.LIKES)
             .dbNotNull("likes")
+
+    /** Atomically records one completed preparation of a recipe.
+     * @param recipeId the recipe that was made.
+     * @return the updated lifetime count.
+     */
+    fun incrementTimesMade(recipeId: UUID): Long =
+        dsl.update(RECIPES)
+            .set(RECIPES.TIMES_MADE, RECIPES.TIMES_MADE.plus(1))
+            .where(RECIPES.ID.eq(recipeId))
+            .returningResult(RECIPES.TIMES_MADE)
+            .fetchOne()
+            ?.get(RECIPES.TIMES_MADE)
+            .dbNotNull("timesMade")
 
 }

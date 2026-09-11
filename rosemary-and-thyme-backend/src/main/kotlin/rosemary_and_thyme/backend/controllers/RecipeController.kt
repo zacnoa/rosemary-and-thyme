@@ -16,20 +16,26 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
+import jakarta.servlet.http.HttpServletRequest
 import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.models.recipes.LikeStatusDTO
+import rosemary_and_thyme.backend.models.recipes.MadeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeFeedPage
 import rosemary_and_thyme.backend.models.recipes.RecipeWriteDTO
 import rosemary_and_thyme.backend.models.recipes.SetPrivateRequest
 import rosemary_and_thyme.backend.services.recipes.RecipeService
+import rosemary_and_thyme.backend.services.ratelimit.ClientIpResolver
 import java.util.UUID
 
 /** Exposes recipe retrieval, editing, search, visibility, and like endpoints. */
 
 @RestController
 @RequestMapping("/recipe")
-class RecipeController(private val recipeService: RecipeService) {
+class RecipeController(
+    private val recipeService: RecipeService,
+    private val clientIpResolver: ClientIpResolver
+) {
 
     /** Returns a recipe when the caller may view it.
      * @param id the recipe id.
@@ -129,6 +135,20 @@ class RecipeController(private val recipeService: RecipeService) {
         @AuthenticationPrincipal user: UsersRecord
     ): ResponseEntity<LikeStatusDTO> =
         ResponseEntity.ok(recipeService.unlikeRecipe(id, user))
+
+    /** Records one completed preparation of a recipe.
+     * @param id the recipe id.
+     * @param user the optional authenticated caller, needed only for private recipes.
+     * @param request the HTTP request used to resolve the rate-limit address.
+     * @return `200 OK` with the updated lifetime count.
+     */
+    @PostMapping("/{id}/made")
+    fun markRecipeMade(
+        @PathVariable id: UUID,
+        @AuthenticationPrincipal user: UsersRecord?,
+        request: HttpServletRequest
+    ): ResponseEntity<MadeStatusDTO> =
+        ResponseEntity.ok(recipeService.markRecipeMade(id, clientIpResolver.resolve(request), user?.id))
 
     /** Deletes a recipe owned by the caller.
      * @param id the recipe id.

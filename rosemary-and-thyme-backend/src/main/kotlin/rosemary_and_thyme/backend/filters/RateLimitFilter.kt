@@ -7,12 +7,14 @@ import jakarta.servlet.http.HttpServletResponse
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import rosemary_and_thyme.backend.services.ratelimit.RateLimiterService
+import rosemary_and_thyme.backend.services.ratelimit.ClientIpResolver
 import java.time.Duration
 
 /** Applies an IP-based rate limit to authentication requests. */
 @Component
 class RateLimitFilter(
-    private val rateLimiter: RateLimiterService
+    private val rateLimiter: RateLimiterService,
+    private val clientIpResolver: ClientIpResolver
 ) : OncePerRequestFilter() {
 
     private val ipLimit = Bandwidth.builder().capacity(20).refillIntervally(20, Duration.ofMinutes(1)).build()
@@ -32,7 +34,7 @@ class RateLimitFilter(
             return
         }
 
-        val ip = request.getHeader("CF-Connecting-IP") ?: request.remoteAddr
+        val ip = clientIpResolver.resolve(request)
 
         if (!rateLimiter.tryConsume("auth-ip", ip, ipLimit)) {
             response.status = 429 // HttpServletResponse has no SC_TOO_MANY_REQUESTS constant (RFC 6585, added after the servlet spec)

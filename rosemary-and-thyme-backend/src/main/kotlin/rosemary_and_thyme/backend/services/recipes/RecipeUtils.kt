@@ -54,6 +54,7 @@ object RecipeUtils {
             name = recipe.name,
             description = recipe.description,
             likes = recipe.likes.dbNotNull("likes"),
+            timesMade = recipe.timesMade.dbNotNull("timesMade"),
             liked = liked,
             portions = recipe.portions,
             cookTime = recipe.cookTime,

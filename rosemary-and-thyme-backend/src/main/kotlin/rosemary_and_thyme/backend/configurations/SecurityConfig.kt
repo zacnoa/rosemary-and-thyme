@@ -92,6 +92,7 @@ class SecurityConfig(
                 ).permitAll()
                 it.requestMatchers(HttpMethod.GET, "/recipe/{id}").permitAll()
                 it.requestMatchers(HttpMethod.GET, "/recipe/search").permitAll()
+                it.requestMatchers(HttpMethod.POST, "/recipe/{id}/made").permitAll()
                 it.anyRequest().authenticated()
             }
             .exceptionHandling {

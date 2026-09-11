@@ -12,6 +12,7 @@ data class RecipeDTO(
     val name: String,
     val description: String,
     val likes: Long,
+    val timesMade: Long,
     val liked: Boolean,
     val portions: Int,
     val cookTime: String,

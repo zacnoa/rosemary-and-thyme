@@ -2,6 +2,7 @@ package rosemary_and_thyme.backend.services.recipes
 
 import com.cloudinary.Cloudinary
 import com.cloudinary.utils.ObjectUtils
+import io.github.bucket4j.Bandwidth
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -10,16 +11,20 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
 import rosemary_and_thyme.backend.exceptions.ForbiddenException
 import rosemary_and_thyme.backend.exceptions.RecipeValidationException
+import rosemary_and_thyme.backend.exceptions.TooManyRequestsException
 import rosemary_and_thyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.IngredientsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.InstructionsRecord
 import rosemary_and_thyme.backend.jooqgenerated.public.tables.records.RecipesRecord
 import rosemary_and_thyme.backend.models.recipes.LikeStatusDTO
+import rosemary_and_thyme.backend.models.recipes.MadeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeFeedPage
 import rosemary_and_thyme.backend.models.recipes.RecipeWriteDTO
 import rosemary_and_thyme.backend.repositories.dbNotNull
 import rosemary_and_thyme.backend.repositories.recipes.RecipeRepository
+import rosemary_and_thyme.backend.services.ratelimit.RateLimiterService
+import java.time.Duration
 import java.util.*
 
 /** Coordinates recipe retrieval, persistence, images, feeds, and likes. */
@@ -28,11 +33,16 @@ import java.util.*
 class RecipeService(
     private val recipeRepository: RecipeRepository,
     private val recipePersistenceService: RecipePersistenceService,
+    private val rateLimiter: RateLimiterService,
     @Value($$"${cloudinary.cloud-name}") private val cloudName: String,
     @Value($$"${cloudinary.api-key}") private val apiKey: String,
     @Value($$"${cloudinary.api-secret}") private val apiSecret: String
 ) {
     private val log = LoggerFactory.getLogger(RecipeService::class.java)
+    private val madeLimit = Bandwidth.builder()
+        .capacity(1)
+        .refillIntervally(1, Duration.ofHours(6))
+        .build()
 
     private val cloudinary by lazy {
         Cloudinary(
@@ -154,6 +164,29 @@ class RecipeService(
         }
 
         return LikeStatusDTO(liked = false, likes = recipeRepository.selectLikesCount(recipeId))
+    }
+
+    /** Records that a recipe was made, at most once per client network every six hours.
+     * @param recipeId the recipe that was made.
+     * @param clientIp the rate-limit identity resolved from the request.
+     * @param currentUserId the optional authenticated caller, used to authorize private recipes.
+     * @return the updated lifetime count.
+     */
+    fun markRecipeMade(recipeId: UUID, clientIp: String, currentUserId: UUID?): MadeStatusDTO {
+        val recipe = recipeRepository.selectRecipeBase(recipeId)
+            ?: throw NoSuchElementException("The recipe you are looking for does not exist")
+
+        if (recipe.isPrivate.dbNotNull("isPrivate") && recipe.userId != currentUserId) {
+            throw NoSuchElementException("The recipe you are looking for does not exist")
+        }
+
+        if (!rateLimiter.tryConsume("recipe-made", "$clientIp|$recipeId", madeLimit)) {
+            throw TooManyRequestsException(
+                "This recipe was already marked as made from your network in the last 6 hours."
+            )
+        }
+
+        return MadeStatusDTO(timesMade = recipeRepository.incrementTimesMade(recipeId))
     }
 
     /** Deletes a recipe and its remote images.
