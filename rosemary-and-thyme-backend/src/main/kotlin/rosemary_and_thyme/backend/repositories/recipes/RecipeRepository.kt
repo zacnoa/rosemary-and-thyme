@@ -3,6 +3,7 @@ package rosemary_and_thyme.backend.repositories.recipes
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Field
+import org.jooq.TableLike
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.springframework.stereotype.Repository
@@ -19,7 +20,9 @@ import rosemary_and_thyme.backend.models.recipes.IngredientDTO
 import rosemary_and_thyme.backend.models.recipes.InstructionDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeWriteDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeFeedDTO
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedFilter
 import rosemary_and_thyme.backend.models.recipes.RecipeFeedPage
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedSort
 import rosemary_and_thyme.backend.models.recipes.RecipeImageDTO
 import rosemary_and_thyme.backend.repositories.dbNotNull
 import java.time.OffsetDateTime
@@ -524,72 +527,59 @@ class RecipeRepository(val dsl: DSLContext) {
 private fun nameSimilarity(term: String) =
         DSL.function("similarity", SQLDataType.DOUBLE, RECIPES.NAME, DSL.value(term))
 
-    /** Builds filters shared by recipe-feed queries.
-     * @param q the optional fuzzy name query.
-     * @param userId the optional owner filter.
-     * @param excludePrivate whether to omit private recipes.
-     * @return the SQL conditions for matching recipes.
-     */
-    private fun searchConditions(q: String?, userId: UUID?, excludePrivate: Boolean = false): List<Condition> {
+    /** Builds SQL conditions for a recipe-feed filter. */
+    private fun searchConditions(filter: RecipeFeedFilter): List<Condition> {
         val conditions = mutableListOf<Condition>()
-        q?.let { conditions += DSL.condition("{0} % {1}", RECIPES.NAME, it) }
-        userId?.let { conditions += RECIPES.USER_ID.eq(it) }
-        if (excludePrivate) conditions += RECIPES.IS_PRIVATE.eq(false)
+        filter.q?.let { conditions += DSL.condition("{0} % {1}", RECIPES.NAME, it) }
+        filter.ownerId?.let { conditions += RECIPES.USER_ID.eq(it) }
+        filter.likedByUserId?.let { conditions += RECIPE_LIKES.USER_ID.eq(it) }
+        if (filter.excludePrivate) conditions += RECIPES.IS_PRIVATE.eq(false)
         return conditions
     }
 
 
-    /** Selects one cursor-paginated recipe-feed page.
-     * @param q the optional fuzzy name query.
-     * @param userId the optional owner filter.
-     * @param orderByLikes whether to sort by likes.
-     * @param excludePrivate whether to omit private recipes.
-     * @param cursor the optional previous-page cursor.
-     * @param pageSize the maximum returned item count.
-     * @return the selected feed page.
-     */
+    /** Selects one cursor-paginated recipe-feed page from a unified filter. */
     fun selectRecipeFeed(
-        q: String? = null,
-        userId: UUID? = null,
-        orderByLikes: Boolean = false,
-        excludePrivate: Boolean = false,
+        filter: RecipeFeedFilter,
         cursor: String? = null,
         pageSize: Int = DEFAULT_PAGE_SIZE
     ): RecipeFeedPage {
-        val conditions = searchConditions(q, userId, excludePrivate).toMutableList()
-
-        // The raw sort-key expression - reused (not the aliased sortKeyColumn below)
-        // in both ORDER BY and the cursor condition, since Postgres can't reference a
-        // SELECT-list alias from WHERE. RECIPES.ID is always the tiebreak, appended
-        // to both, so ties on the primary key (e.g. two recipes with equal likes)
-        // still sort/paginate deterministically.
-        val ascending = !orderByLikes && q == null
-        val sortKey: Field<*> = when {
-            orderByLikes -> RECIPES.LIKES
-            q != null -> nameSimilarity(q)
-            else -> RECIPES.NAME
+        require(filter.sort != RecipeFeedSort.LIKED_AT_DESC || filter.likedByUserId != null) {
+            "LIKED_AT_DESC requires likedByUserId"
+        }
+        val conditions = searchConditions(filter).toMutableList()
+        val ascending = filter.sort == RecipeFeedSort.NAME_ASC
+        val sortKey: Field<*> = when (filter.sort) {
+            RecipeFeedSort.NAME_ASC -> RECIPES.NAME
+            RecipeFeedSort.RELEVANCE_DESC -> nameSimilarity(requireNotNull(filter.q) { "RELEVANCE_DESC requires q" })
+            RecipeFeedSort.LIKES_DESC -> RECIPES.LIKES
+            RecipeFeedSort.LIKED_AT_DESC -> RECIPE_LIKES.CREATED_AT
         }
         val sortKeyColumn = sortKey.`as`("sort_key")
 
         if (cursor != null) {
             val (sortValue, cursorId) = RecipeCursor.decode(cursor)
-            conditions += when {
-                orderByLikes -> DSL.row(RECIPES.LIKES, RECIPES.ID).lt(DSL.row(sortValue.toLong(), cursorId))
-                q != null -> DSL.row(nameSimilarity(q), RECIPES.ID).lt(DSL.row(sortValue.toDouble(), cursorId))
-                else -> DSL.row(RECIPES.NAME, RECIPES.ID).gt(DSL.row(sortValue, cursorId))
+            conditions += when (filter.sort) {
+                RecipeFeedSort.NAME_ASC -> DSL.row(RECIPES.NAME, RECIPES.ID).gt(DSL.row(sortValue, cursorId))
+                RecipeFeedSort.RELEVANCE_DESC -> DSL.row(nameSimilarity(requireNotNull(filter.q)), RECIPES.ID)
+                    .lt(DSL.row(sortValue.toDouble(), cursorId))
+                RecipeFeedSort.LIKES_DESC -> DSL.row(RECIPES.LIKES, RECIPES.ID).lt(DSL.row(sortValue.toLong(), cursorId))
+                RecipeFeedSort.LIKED_AT_DESC -> DSL.row(RECIPE_LIKES.CREATED_AT, RECIPES.ID)
+                    .lt(DSL.row(OffsetDateTime.parse(sortValue), cursorId))
             }
         }
 
+        val fromTable: TableLike<*> = filter.likedByUserId?.let {
+            RECIPE_LIKES.join(RECIPES).on(RECIPE_LIKES.RECIPE_ID.eq(RECIPES.ID))
+        } ?: RECIPES
+
         val rows = dsl.select(
             RECIPES.ID, RECIPES.NAME, RECIPES.DESCRIPTION, RECIPES.LIKES,
             RECIPES.USER_NAME, RECIPES.CREATED_DATE, RECIPES.IS_PRIVATE, sortKeyColumn
         )
-            .from(RECIPES)
+            .from(fromTable)
             .where(conditions)
             .orderBy(if (ascending) sortKey.asc() else sortKey.desc(), if (ascending) RECIPES.ID.asc() else RECIPES.ID.desc())
-            // pageSize + 1: the extra row (if it comes back) is never returned to the
-            // caller, only its presence is - that's how hasMore/nextCursor below is
-            // known without a separate COUNT(*) query.
             .limit(pageSize + 1)
             .fetch()
 
@@ -616,60 +606,6 @@ private fun nameSimilarity(term: String) =
         )
     }
 
-    /** Selects one cursor-paginated page of liked recipes.
-     * @param userId the user whose likes are listed.
-     * @param cursor the optional previous-page cursor.
-     * @param pageSize the maximum returned item count.
-     * @return the selected feed page.
-     */
-    fun selectLikedRecipeFeed(
-        userId: UUID,
-        cursor: String? = null,
-        pageSize: Int = DEFAULT_PAGE_SIZE
-    ): RecipeFeedPage {
-        val conditions = mutableListOf(RECIPE_LIKES.USER_ID.eq(userId))
-
-        if (cursor != null) {
-            val (sortValue, cursorId) = RecipeCursor.decode(cursor)
-            conditions += DSL.row(RECIPE_LIKES.CREATED_AT, RECIPES.ID)
-                .lt(DSL.row(OffsetDateTime.parse(sortValue), cursorId))
-        }
-
-        val sortKeyColumn = RECIPE_LIKES.CREATED_AT.`as`("sort_key")
-
-        val rows = dsl.select(
-            RECIPES.ID, RECIPES.NAME, RECIPES.DESCRIPTION, RECIPES.LIKES,
-            RECIPES.USER_NAME, RECIPES.CREATED_DATE, RECIPES.IS_PRIVATE, sortKeyColumn
-        )
-            .from(RECIPE_LIKES)
-            .join(RECIPES).on(RECIPE_LIKES.RECIPE_ID.eq(RECIPES.ID))
-            .where(conditions)
-            .orderBy(RECIPE_LIKES.CREATED_AT.desc(), RECIPES.ID.desc())
-            .limit(pageSize + 1)
-            .fetch()
-
-        val page = rows.take(pageSize)
-        val nextCursor = if (rows.size > pageSize) {
-            val last = page.last()
-            RecipeCursor.encode(last[sortKeyColumn].dbNotNull("sort_key").toString(), last[RECIPES.ID].dbNotNull("id"))
-        } else null
-
-        return RecipeFeedPage(
-            items = page.map {
-                RecipeFeedDTO(
-                    id = it[RECIPES.ID].dbNotNull("id"),
-                    name = it[RECIPES.NAME].dbNotNull("name"),
-                    description = it[RECIPES.DESCRIPTION].dbNotNull("description"),
-                    likes = it[RECIPES.LIKES].dbNotNull("likes"),
-                    userName = it[RECIPES.USER_NAME].dbNotNull("user_name"),
-                    createDate = it[RECIPES.CREATED_DATE].dbNotNull("created_date"),
-                    heroImageUrl = null,
-                    isPrivate = it[RECIPES.IS_PRIVATE].dbNotNull("is_private")
-                )
-            },
-            nextCursor = nextCursor
-        )
-    }
 
     /** Finds the first hero image for each recipe.
      * @param recipeIds the recipes to query.

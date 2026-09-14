@@ -22,6 +22,8 @@ import rosemary_and_thyme.backend.models.recipes.LikeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.MadeStatusDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeDTO
 import rosemary_and_thyme.backend.models.recipes.RecipeFeedPage
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedFilter
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedSort
 import rosemary_and_thyme.backend.models.recipes.RecipeWriteDTO
 import rosemary_and_thyme.backend.models.recipes.SetPrivateRequest
 import rosemary_and_thyme.backend.services.recipes.RecipeService
@@ -110,7 +112,12 @@ class RecipeController(
         @RequestParam(required = false) userId: UUID?,
         @RequestParam(required = false) cursor: String?
     ): ResponseEntity<RecipeFeedPage> =
-        ResponseEntity.ok(recipeService.searchRecipeFeed(q, userId, orderByLikes = true, excludePrivate = true, cursor = cursor))
+        ResponseEntity.ok(
+            recipeService.recipeFeed(
+                RecipeFeedFilter(q = q, ownerId = userId, excludePrivate = true, sort = RecipeFeedSort.LIKES_DESC),
+                cursor
+            )
+        )
 
     /** Adds the caller's like to a recipe.
      * @param id the recipe id.
