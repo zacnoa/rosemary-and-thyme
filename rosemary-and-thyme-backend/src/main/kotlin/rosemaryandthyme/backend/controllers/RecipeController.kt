@@ -131,7 +131,12 @@ class RecipeController(
         @RequestParam(required = false) userId: UUID?,
         @RequestParam(required = false) cursor: String?
     ): ResponseEntity<RecipeFeedPage> =
-        ResponseEntity.ok(recipeService.searchRecipeFeed(q, userId, orderByLikes = true, excludePrivate = true, cursor = cursor))
+        ResponseEntity.ok(
+            recipeService.recipeFeed(
+                RecipeFeedFilter(q = q, ownerId = userId, excludePrivate = true, sort = RecipeFeedSort.LIKES_DESC),
+                cursor
+            )
+        )
 
     /** Adds the caller's like to a recipe.
      * @param id the recipe id.

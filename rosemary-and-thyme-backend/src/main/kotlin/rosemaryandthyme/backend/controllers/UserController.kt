@@ -100,7 +100,14 @@ class UserController(
         @AuthenticationPrincipal user: UsersRecord
     ): ResponseEntity<RecipeFeedPage> =
         ResponseEntity.ok(
-            recipeService.searchRecipeFeed(q = q, userId = user.id, orderByLikes = false, excludePrivate = false, cursor = cursor)
+            recipeService.recipeFeed(
+                RecipeFeedFilter(
+                    q = q,
+                    ownerId = user.id,
+                    sort = if (q.isNullOrBlank()) RecipeFeedSort.NAME_ASC else RecipeFeedSort.RELEVANCE_DESC
+                ),
+                cursor
+            )
         )
 
     /** Returns a paginated feed of recipes liked by the current user.
@@ -110,9 +117,15 @@ class UserController(
      */
     @GetMapping("/recipes/liked")
     fun searchLikedRecipes(
+        @RequestParam(required = false) q: String?,
         @RequestParam(required = false) cursor: String?,
         @AuthenticationPrincipal user: UsersRecord
     ): ResponseEntity<RecipeFeedPage> =
-        ResponseEntity.ok(recipeService.likedRecipeFeed(user.id.dbNotNull("id"), cursor))
+        ResponseEntity.ok(
+            recipeService.recipeFeed(
+                RecipeFeedFilter(q = q, likedByUserId = user.id.dbNotNull("id"), sort = RecipeFeedSort.LIKED_AT_DESC),
+                cursor
+            )
+        )
 
 }

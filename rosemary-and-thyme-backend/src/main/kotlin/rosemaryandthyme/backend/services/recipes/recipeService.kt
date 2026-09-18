@@ -365,33 +365,9 @@ class RecipeService(
         }
     }
 
-    /** Returns one filtered and ordered recipe-feed page.
-     * @param q the optional fuzzy name query.
-     * @param userId the optional owner filter.
-     * @param orderByLikes whether to sort by likes.
-     * @param excludePrivate whether to omit private recipes.
-     * @param cursor the optional previous-page cursor.
-     * @return a recipe-feed page with hero images.
-     */
-    fun searchRecipeFeed(
-        q: String? = null,
-        userId: UUID? = null,
-        orderByLikes: Boolean = false,
-        excludePrivate: Boolean = false,
-        cursor: String? = null
-    ): RecipeFeedPage {
-        val page = recipeRepository.selectRecipeFeed(q, userId, orderByLikes, excludePrivate, cursor)
-        val heroImages = recipeRepository.selectFirstHeroImages(page.items.map { it.id })
-        return page.copy(items = page.items.map { it.copy(heroImageUrl = heroImages[it.id]) })
-    }
-
-    /** Returns one page of recipes liked by a user.
-     * @param userId the user whose likes are listed.
-     * @param cursor the optional previous-page cursor.
-     * @return a liked-recipe feed page with hero images.
-     */
-    fun likedRecipeFeed(userId: UUID, cursor: String? = null): RecipeFeedPage {
-        val page = recipeRepository.selectLikedRecipeFeed(userId, cursor)
+    /** Returns one filtered and ordered recipe-feed page with hero images. */
+    fun recipeFeed(filter: RecipeFeedFilter, cursor: String? = null): RecipeFeedPage {
+        val page = recipeRepository.selectRecipeFeed(filter, cursor)
         val heroImages = recipeRepository.selectFirstHeroImages(page.items.map { it.id })
         return page.copy(items = page.items.map { it.copy(heroImageUrl = heroImages[it.id]) })
     }
