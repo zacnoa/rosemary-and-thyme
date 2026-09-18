@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestClientResponseException
 import org.springframework.web.multipart.MultipartFile
+import rosemaryandthyme.backend.exceptions.RecipeVisionComputeException
 import rosemaryandthyme.backend.exceptions.RecipeVisionException
 import rosemaryandthyme.backend.exceptions.RecipeVisionTimeoutException
 import rosemaryandthyme.backend.exceptions.RecipeVisionUnavailableException
@@ -93,12 +94,21 @@ class RecipeVisionService(
             }
             throw RecipeVisionUnavailableException("Recipe vision service is unavailable", error)
         } catch (error: RestClientResponseException) {
+            if (error.statusCode.is5xxServerError) {
+                throw RecipeVisionComputeException(
+                    "Recipe vision could not process this image. Please try again later.",
+                    error
+                )
+            }
             throw RecipeVisionException(
                 "Recipe vision failed with status ${error.statusCode.value()}",
                 error
             )
         } catch (error: RestClientException) {
-            throw RecipeVisionException("Recipe vision returned an invalid response", error)
+            throw RecipeVisionComputeException(
+                "Recipe vision could not process this image. Please try again later.",
+                error
+            )
         }
     }
 

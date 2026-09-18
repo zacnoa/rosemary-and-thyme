@@ -3,6 +3,9 @@ package rosemaryandthyme.backend.exceptions
 /** The recipe-vision service rejected the image or could not extract a recipe. */
 class RecipeVisionException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 
+/** Recipe Vision accepted the request but could not complete model inference. */
+class RecipeVisionComputeException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
+
 /** The recipe-vision service could not be reached. */
 class RecipeVisionUnavailableException(message: String, cause: Throwable? = null) : RuntimeException(message, cause)
 

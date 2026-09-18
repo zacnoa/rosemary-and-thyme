@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestPart
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import jakarta.servlet.http.HttpServletRequest
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedFilter
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedSort
 import rosemaryandthyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemaryandthyme.backend.models.recipes.LikeStatusDTO
 import rosemaryandthyme.backend.models.recipes.MadeStatusDTO

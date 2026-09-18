@@ -7,6 +7,8 @@ import org.jooq.TableLike
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import org.springframework.stereotype.Repository
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedFilter
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedSort
 import rosemaryandthyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemaryandthyme.backend.jooqgenerated.public.tables.HeroImages.Companion.HERO_IMAGES
 import rosemaryandthyme.backend.jooqgenerated.public.tables.Ingredients.Companion.INGREDIENTS

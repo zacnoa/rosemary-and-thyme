@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedFilter
 import rosemaryandthyme.backend.exceptions.ForbiddenException
 import rosemaryandthyme.backend.exceptions.RecipeValidationException
 import rosemaryandthyme.backend.exceptions.TooManyRequestsException

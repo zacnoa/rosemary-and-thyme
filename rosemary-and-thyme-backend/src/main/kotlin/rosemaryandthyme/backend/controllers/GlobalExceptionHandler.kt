@@ -15,6 +15,7 @@ import rosemaryandthyme.backend.exceptions.ForbiddenException
 import rosemaryandthyme.backend.exceptions.GoogleAccountException
 import rosemaryandthyme.backend.exceptions.InvalidTokenException
 import rosemaryandthyme.backend.exceptions.RecipeValidationException
+import rosemaryandthyme.backend.exceptions.RecipeVisionComputeException
 import rosemaryandthyme.backend.exceptions.RecipeVisionException
 import rosemaryandthyme.backend.exceptions.RecipeVisionTimeoutException
 import rosemaryandthyme.backend.exceptions.RecipeVisionUnavailableException
@@ -167,6 +168,19 @@ class GlobalExceptionHandler(
         ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, e.message ?: "Recipe extraction failed")
             .apply {
                 title = "Recipe extraction failed"
+                instance = URI.create(request.requestURI)
+            }
+
+    /** Recipe Vision was reachable but its model could not complete this extraction. */
+    @ExceptionHandler(RecipeVisionComputeException::class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    fun handleRecipeVisionCompute(
+        e: RecipeVisionComputeException,
+        request: HttpServletRequest
+    ): ProblemDetail =
+        ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, e.message)
+            .apply {
+                title = "Recipe vision could not process image"
                 instance = URI.create(request.requestURI)
             }
 

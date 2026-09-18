@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedFilter
+import rosemary_and_thyme.backend.models.recipes.RecipeFeedSort
 import rosemaryandthyme.backend.jooqgenerated.app_auth.tables.records.UsersRecord
 import rosemaryandthyme.backend.models.auth.ChangePasswordRequest
 import rosemaryandthyme.backend.models.auth.UserDTO
