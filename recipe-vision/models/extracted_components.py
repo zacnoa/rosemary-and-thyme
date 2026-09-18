@@ -1,13 +1,6 @@
 from pydantic import BaseModel, Field
 
 
-COOK_TIME_PATTERN = (
-    r"^(?:\d+(?:\.\d+)?h(?: \d+(?:\.\d+)?m)?|\d+(?:\.\d+)?m)"
-    r"(?:-(?:\d+(?:\.\d+)?h(?: \d+(?:\.\d+)?m)?|\d+(?:\.\d+)?m))?$"
-    r"|^\d+(?:\.\d+)?-\d+(?:\.\d+)?[hm]$"
-)
-
-
 class ExtractedIngredient(BaseModel):
     source_text: str = Field(
         description="Exact source ingredient line used to produce this item."
@@ -15,10 +8,11 @@ class ExtractedIngredient(BaseModel):
     name: str | None = Field(
         description="Ingredient name only, without its numeric amount or measuring unit."
     )
-    amount: str | None = Field(
+    amount: float | None = Field(
+        ge=0,
         description=(
-            "Normalized source quantity as text, including a meaningful fraction or "
-            "range; null when absent or ambiguous."
+            "Normalized numeric source quantity. Convert an unambiguous fraction to "
+            "its decimal value; null when absent, ambiguous, or expressed as a range."
         )
     )
     measuring_unit: str | None = Field(
@@ -66,7 +60,6 @@ class ExtractedRecipe(BaseModel):
             "Time stated in the recipe in Xh Ym or Ym format; preserve ranges such as "
             "2h-3h or 2-3h without inventing a midpoint."
         ),
-        pattern=COOK_TIME_PATTERN,
     )
     difficulty: int | None = Field(ge=1, le=5)
     side_notes: str | None

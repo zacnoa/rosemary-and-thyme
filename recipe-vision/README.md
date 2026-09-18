@@ -4,26 +4,26 @@ A project created with FastAPI CLI.
 
 ## Extract a recipe from the command line
 
-Run the complete preprocessing and extraction flow without starting the API
-server:
+Run the complete extraction flow without starting the API server:
 
 ```bash
 uv run python cli.py assets/rotated.jpg
 ```
 
-The CLI first shows the rotated and threshold images in a preview window. Close
-the window (or press `Esc`/`q`) to start extraction. The vision model faithfully
-transcribes the visible recipe into a source-grounded intermediate result. A
-second, text-only parser model then normalizes amounts, units, language, and
-grammar while retaining the original `source_text` for every item.
+The original color image is sent directly to the vision model without a preview
+or preprocessing step. The model faithfully transcribes the visible recipe into
+a source-grounded intermediate result. A second parser pass then normalizes
+amounts, units, language, and grammar while retaining the original `source_text`
+for every item.
 
-The default models are Qwen3-VL 8B Instruct for vision and Gemma 3 4B for
-parsing. They can be changed independently:
+The default workflow uses Qwen3-VL 8B Instruct with a 16k context for both
+vision and parsing. The vision pass receives one original color image. Models
+can still be changed independently:
 
 ```bash
 uv run python cli.py assets/rotated.jpg \
   --vision-model qwen3-vl:8b-instruct-q4_K_M \
-  --parser-model gemma3:4b
+  --parser-model qwen3-vl:8b-instruct-q4_K_M
 ```
 
 ### Batch extraction
@@ -33,7 +33,7 @@ Run every image in `assets` through source transcription and parsing:
 ```bash
 uv run python batch_extract.py assets \
   --vision-model qwen3-vl:8b-instruct-q4_K_M \
-  --parser-model gemma3:4b \
+  --parser-model qwen3-vl:8b-instruct-q4_K_M \
   --output-dir outputs/batch-vision-parser
 ```
 
@@ -46,10 +46,22 @@ contains the aggregate result.
 ### Start the development server
 
 ```bash
-uv run fastapi dev
+uv sync
+uv run fastapi dev --host 0.0.0.0 --port 8000
 ```
 
 Visit http://localhost:8000
+
+The API accepts one JPEG or PNG in the `image` multipart field:
+
+```bash
+curl -X POST http://localhost:8000/recipe-vision \
+  -F "image=@assets/typed.jpg"
+```
+
+`RECIPE_VISION_API_KEY` is optional for local development. When configured, the
+caller must send the same value in the `X-API-Key` header. Set it in production
+because a Runpod proxy URL is publicly reachable.
 
 ### Deploy to FastAPI Cloud
 

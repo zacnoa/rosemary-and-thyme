@@ -17,7 +17,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--parser-model",
-        default="gemma3:4b",
+        default="qwen3-vl:8b-instruct-q4_K_M",
         help="Text model used to normalize the source transcription.",
     )
     return parser.parse_args()
@@ -36,7 +36,6 @@ def main() -> None:
     with image_path.open("rb") as image_file:
         recipe = extract_recipe(
             image_file,
-            preview=True,
             vision_model=args.vision_model,
             parser_model=args.parser_model,
         )

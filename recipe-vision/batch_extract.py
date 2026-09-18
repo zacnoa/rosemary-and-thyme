@@ -30,7 +30,10 @@ def parse_args() -> argparse.Namespace:
         "--vision-model",
         default="qwen3-vl:8b-instruct-q4_K_M",
     )
-    parser.add_argument("--parser-model", default="gemma3:4b")
+    parser.add_argument(
+        "--parser-model",
+        default="qwen3-vl:8b-instruct-q4_K_M",
+    )
     parser.add_argument(
         "--limit",
         type=int,

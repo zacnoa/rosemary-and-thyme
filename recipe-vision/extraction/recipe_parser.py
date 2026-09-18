@@ -8,7 +8,7 @@ from models.raw_extracted_components import RawExtractedRecipe
 
 def recipe_parser(
     raw_recipe: RawExtractedRecipe,
-    model: str = "gemma3:4b",
+    model: str = "qwen3-vl:8b-instruct-q4_K_M",
 ) -> ExtractedRecipe:
     source_json = raw_recipe.model_dump_json(indent=2)
 
@@ -22,7 +22,7 @@ def recipe_parser(
             "repeat_penalty": 1.1,
         }
         if model.startswith("qwen3-vl:"):
-            options["num_ctx"] = 8192
+            options["num_ctx"] = 16384
 
         response = chat(
             model=model,
