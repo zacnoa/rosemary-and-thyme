@@ -40,7 +40,7 @@ Notable engineering choices include:
 │   └── docker-compose.yaml        # Local PostgreSQL 16 and pgAdmin
 ├── src/
 │   ├── main/
-│   │   ├── kotlin/rosemary_and_thyme/backend/
+│   │   ├── kotlin/rosemaryandthyme/backend/
 │   │   │   ├── configurations/    # Security, CORS, and Google OIDC handling
 │   │   │   ├── controllers/       # REST endpoints and exception mapping
 │   │   │   ├── exceptions/        # Domain-specific application errors
@@ -56,7 +56,7 @@ Notable engineering choices include:
 └── gradlew / gradlew.bat           # Gradle wrapper
 ```
 
-The `rosemary_and_thyme.backend.jooqgenerated` package is generated from `db/schema.sql`. It is intentionally excluded from version control and recreated by `jooqCodegen`; `compileKotlin` depends on that task automatically.
+The `rosemaryandthyme.backend.jooqgenerated` package is generated from `db/schema.sql`. It is intentionally excluded from version control and recreated by `jooqCodegen`; `compileKotlin` depends on that task automatically.
 
 ## Application architecture
 
@@ -122,6 +122,7 @@ Spring Security handles the internal Google authorization and callback paths und
 | `GET` | `/recipe/search?q=&userId=&cursor=` | Public | Search public recipes and return a cursor-paginated feed. |
 | `GET` | `/recipe/{id}` | Public | Return a public recipe, or a private recipe when requested by its owner. |
 | `POST` | `/recipe` | Authenticated | Create a recipe from a multipart DTO and image files. |
+| `POST` | `/recipe/extract` | Authenticated | Extract one uploaded JPEG/PNG, immediately create a private recipe, and return it for editing. |
 | `PUT` | `/recipe/{id}` | Authenticated owner | Replace the complete editable state of a recipe. |
 | `DELETE` | `/recipe/{id}` | Authenticated owner | Delete a recipe and clean up its images. |
 | `PATCH` | `/recipe/{id}/private` | Authenticated owner | Change recipe visibility. |
@@ -207,6 +208,7 @@ Bucket4j provides layered token-bucket limits:
 | Verification-email resend | 1 per minute and 5 per day | Email address |
 | Password-reset request | 1 per minute and 5 per day | Email address |
 | Password change | 5 attempts per 15 minutes | User ID |
+| Recipe image extraction | 2 attempts per 24 hours | User ID |
 
 Buckets are stored in memory. Their state resets when the application restarts and is not shared between application instances; a distributed store would be required for horizontally scaled enforcement.
 
@@ -249,6 +251,10 @@ Spring imports an optional project-root `.env` file. The file is ignored by Git.
 | `CLOUDINARY_SECRET` | Yes | Cloudinary API secret | Provider value |
 | `RESEND_API_KEY` | Yes | Resend API key | Provider value |
 | `RESEND_FROM_EMAIL` | Yes | Verified sender address | `noreply@example.com` |
+| `RECIPE_VISION_URL` | No | Python recipe-vision base URL | `http://localhost:8000` |
+| `RECIPE_VISION_API_KEY` | No locally | Shared secret sent to recipe-vision | Empty locally |
+| `RECIPE_VISION_CONNECT_TIMEOUT` | No | Connection timeout | `10s` |
+| `RECIPE_VISION_READ_TIMEOUT` | No | Complete extraction timeout | `120s` |
 | `FRONTEND_URL` | No | CORS origin, email-link base, and OAuth redirect base | `http://localhost:3000` |
 | `COOKIE_DOMAIN` | No | Domain applied to authentication cookies | `localhost` |
 
@@ -268,6 +274,9 @@ CLOUDINARY_SECRET=your-cloudinary-secret
 
 RESEND_API_KEY=your-resend-api-key
 RESEND_FROM_EMAIL=noreply@example.com
+
+RECIPE_VISION_URL=http://localhost:8000
+# RECIPE_VISION_API_KEY=use-the-same-value-as-the-python-service
 
 FRONTEND_URL=http://localhost:3000
 COOKIE_DOMAIN=localhost
@@ -318,6 +327,19 @@ Then create `.env` from the example above and start the API:
 ```
 
 The API starts at `http://localhost:8080` unless Spring's server configuration is overridden.
+
+For recipe extraction, start the Python `recipe-vision` service on port 8000
+before the Spring backend. The authenticated extraction request contains exactly
+one multipart field named `image`:
+
+```powershell
+curl.exe -X POST http://localhost:8080/recipe/extract `
+  -b "session_cookie=YOUR_SESSION" `
+  -F "image=@../recipe-vision/assets/typed.jpg"
+```
+
+The source photograph is used only for extraction. The created recipe has no
+hero image and is private until its owner explicitly changes its visibility.
 
 Stop the local containers with:
 

@@ -6,7 +6,7 @@ plugins {
     id("org.jooq.jooq-codegen-gradle") version "3.21.2"
 }
 
-group = "rosemary_and_thyme"
+group = "rosemaryandthyme"
 version = "0.0.1-SNAPSHOT"
 description = "rosemary-and-thyme-backend"
 
@@ -129,7 +129,7 @@ jooq {
             }
             target {
                 directory = "src/main/kotlin"
-                packageName = "rosemary_and_thyme.backend.jooqgenerated"
+                packageName = "rosemaryandthyme.backend.jooqgenerated"
             }
         }
     }
