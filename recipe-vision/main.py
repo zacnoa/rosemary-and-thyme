@@ -1,5 +1,6 @@
 import os
 import secrets
+import logging
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile, status
@@ -9,6 +10,7 @@ from models.extracted_components import ExtractedRecipe
 from services.extract_recipe import extract_recipe
 
 app = FastAPI()
+logger = logging.getLogger(__name__)
 SUPPORTED_IMAGE_TYPES = {"image/jpeg", "image/png"}
 
 
@@ -49,6 +51,12 @@ def process_recipe_image(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error),
+        ) from error
+    except Exception as error:
+        logger.exception("Recipe vision model inference failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Recipe vision could not process this image. Please try again later.",
         ) from error
 
     return RecipeVisionResponse(recipe=recipe)
