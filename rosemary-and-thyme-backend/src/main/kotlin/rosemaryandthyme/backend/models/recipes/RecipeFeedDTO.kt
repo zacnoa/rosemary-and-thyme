@@ -1,5 +1,6 @@
 package rosemaryandthyme.backend.models.recipes
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.LocalDate
 import java.util.UUID
 
@@ -12,5 +13,6 @@ data class RecipeFeedDTO(
     val userName: String,
     val createDate: LocalDate,
     val heroImageUrl: String?,
+    @get:JsonProperty("isPrivate")
     val isPrivate: Boolean
 )
