@@ -1,13 +1,11 @@
-import os
-import secrets
 import logging
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
 from models.extracted_components import ExtractedRecipe
-from services.extract_recipe import extract_recipe
+from providers.openrouter import recipe_vision
 
 app = FastAPI()
 logger = logging.getLogger(__name__)
@@ -18,23 +16,9 @@ class RecipeVisionResponse(BaseModel):
     recipe: ExtractedRecipe
 
 
-def verify_api_key(
-    api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
-) -> None:
-    expected_api_key = os.getenv("RECIPE_VISION_API_KEY")
-    if expected_api_key and (
-        api_key is None or not secrets.compare_digest(api_key, expected_api_key)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid recipe vision API key.",
-        )
-
-
 @app.post(
     "/recipe-vision",
     response_model=RecipeVisionResponse,
-    dependencies=[Depends(verify_api_key)],
 )
 def process_recipe_image(
     image: Annotated[UploadFile, File()],
@@ -46,7 +30,7 @@ def process_recipe_image(
         )
 
     try:
-        recipe = extract_recipe(image.file)
+        recipe = recipe_vision(image.file.read())
     except ValueError as error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

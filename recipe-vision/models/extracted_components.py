@@ -1,12 +1,19 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class ExtractedIngredient(BaseModel):
-    source_text: str = Field(
-        description="Exact source ingredient line used to produce this item."
-    )
-    name: str | None = Field(
-        description="Ingredient name only, without its numeric amount or measuring unit."
+class StrictRecipeModel(BaseModel):
+    """Forbid unrecognised fields in provider output and JSON Schema."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ExtractedIngredient(StrictRecipeModel):
+    name: str = Field(
+        default="",
+        description=(
+            "Ingredient name only, without its numeric amount or measuring unit. "
+            "Use an empty string when it cannot be read safely."
+        )
     )
     amount: float | None = Field(
         ge=0,
@@ -21,20 +28,16 @@ class ExtractedIngredient(BaseModel):
             "the source does not state a unit."
         )
     )
-    confidence: float = Field(ge=0, le=1)
-    warnings: list[str]
 
 
-class ExtractedInstruction(BaseModel):
-    source_text: str = Field(
-        description="Exact source instruction block used to produce this item."
+class ExtractedInstruction(StrictRecipeModel):
+    text: str = Field(
+        default="",
+        description="Instruction text, or an empty string when it cannot be read safely.",
     )
-    text: str | None
-    confidence: float = Field(ge=0, le=1)
-    warnings: list[str]
 
 
-class ExtractedRecipe(BaseModel):
+class ExtractedRecipe(StrictRecipeModel):
     source_name: str | None = Field(
         description="Exact source recipe title before normalization."
     )
@@ -51,9 +54,6 @@ class ExtractedRecipe(BaseModel):
             "instruction text, or null when uncertain."
         )
     )
-    description: str | None = Field(
-        description="Description explicitly present in the recipe; never generate one."
-    )
     portions: int | None
     cook_time: str | None = Field(
         description=(
@@ -66,7 +66,3 @@ class ExtractedRecipe(BaseModel):
 
     ingredients: list[ExtractedIngredient]
     instructions: list[ExtractedInstruction]
-
-    warnings: list[str]
-    confidence: float = Field(ge=0, le=1)
-    requires_review: bool

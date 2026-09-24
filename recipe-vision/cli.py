@@ -2,7 +2,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from services.extract_recipe import extract_recipe
+from providers.openrouter import recipe_vision
+from providers.openrouter import vision_model as default_vision_model
 
 
 def parse_args() -> argparse.Namespace:
@@ -11,14 +12,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("image", type=Path, help="Path to a JPEG or PNG recipe image.")
     parser.add_argument(
-        "--vision-model",
-        default="qwen3-vl:8b-instruct-q4_K_M",
-        help="Vision model used for source transcription.",
-    )
-    parser.add_argument(
-        "--parser-model",
-        default="qwen3-vl:8b-instruct-q4_K_M",
-        help="Text model used to normalize the source transcription.",
+        "--model",
+        default=default_vision_model(),
+        help="OpenRouter model; defaults to OPENROUTER_VISION_MODEL.",
     )
     return parser.parse_args()
 
@@ -34,11 +30,7 @@ def main() -> None:
         raise SystemExit(f"Image not found: {image_path}")
 
     with image_path.open("rb") as image_file:
-        recipe = extract_recipe(
-            image_file,
-            vision_model=args.vision_model,
-            parser_model=args.parser_model,
-        )
+        recipe = recipe_vision(image_file.read(), model=args.model)
 
     print(recipe.model_dump_json(indent=2))
 
