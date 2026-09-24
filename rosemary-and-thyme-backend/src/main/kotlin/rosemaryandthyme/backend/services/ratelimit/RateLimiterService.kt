@@ -18,11 +18,18 @@ class RateLimiterService {
      * @return whether a token was available.
      */
     fun tryConsume(scope: String, key: String, vararg bandwidths: Bandwidth): Boolean {
-        val bucket = buckets.computeIfAbsent("$scope:$key") {
+        return bucket(scope, key, bandwidths).tryConsume(1)
+    }
+
+    /** Returns one token to a reservation that did not result in a completed action. */
+    fun refund(scope: String, key: String, vararg bandwidths: Bandwidth) {
+        bucket(scope, key, bandwidths).addTokens(1)
+    }
+
+    private fun bucket(scope: String, key: String, bandwidths: Array<out Bandwidth>): Bucket =
+        buckets.computeIfAbsent("$scope:$key") {
             val builder = Bucket.builder()
             bandwidths.forEach { builder.addLimit(it) }
             builder.build()
         }
-        return bucket.tryConsume(1)
-    }
 }

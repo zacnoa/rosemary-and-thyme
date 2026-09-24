@@ -39,6 +39,11 @@ class RecipeVisionService(
         .refillIntervally(2, Duration.ofDays(1))
         .build()
 
+    private val extractionAttemptLimit = Bandwidth.builder()
+        .capacity(5)
+        .refillIntervally(5, Duration.ofMinutes(1))
+        .build()
+
     private val client = RestClient.builder()
         .baseUrl(baseUrl)
         .requestFactory(
@@ -58,7 +63,13 @@ class RecipeVisionService(
         require(contentType == MediaType.IMAGE_JPEG || contentType == MediaType.IMAGE_PNG) {
             "Only JPEG and PNG recipe images are supported"
         }
-        if (!rateLimiter.tryConsume("recipe-extraction-user", userId.toString(), extractionLimit)) {
+        val userKey = userId.toString()
+        if (!rateLimiter.tryConsume("recipe-extraction-attempt", userKey, extractionAttemptLimit)) {
+            throw TooManyRequestsException(
+                "You can try recipe extraction up to 5 times per minute. Please try again shortly."
+            )
+        }
+        if (!rateLimiter.tryConsume("recipe-extraction-success", userKey, extractionLimit)) {
             throw TooManyRequestsException(
                 "You can create up to 2 digital recipe drafts per day. Please try again later."
             )
@@ -73,17 +84,20 @@ class RecipeVisionService(
             part("image", imageResource).contentType(contentType)
         }.build()
 
+        var extractionCompleted = false
         try {
             val request = client.post()
                 .uri("/recipe-vision")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
 
-            return request
+            val recipe = request
                 .body(multipartBody)
                 .retrieve()
                 .body(RecipeVisionResponse::class.java)
                 ?.recipe
                 ?: throw RecipeVisionException("Recipe vision returned an empty response")
+            extractionCompleted = true
+            return recipe
         } catch (error: ResourceAccessException) {
             if (error.hasTimeoutCause()) {
                 throw RecipeVisionTimeoutException("Recipe extraction timed out", error)
@@ -105,6 +119,10 @@ class RecipeVisionService(
                 "Recipe vision could not process this image. Please try again later.",
                 error
             )
+        } finally {
+            if (!extractionCompleted) {
+                rateLimiter.refund("recipe-extraction-success", userKey, extractionLimit)
+            }
         }
     }
 
