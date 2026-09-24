@@ -16,32 +16,22 @@ class RecipeVisionMapperTests {
             sourceName = "Palačinke",
             name = "Palačinke",
             language = "hr",
-            description = null,
             portions = null,
             cookTime = null,
             difficulty = null,
             sideNotes = null,
             ingredients = listOf(
                 ExtractedIngredientDTO(
-                    sourceText = "1/2 l mlijeka",
                     name = "mlijeko",
                     amount = BigDecimal("0.5"),
-                    measuringUnit = "l",
-                    confidence = 0.9,
-                    warnings = emptyList()
+                    measuringUnit = "l"
                 )
             ),
             instructions = listOf(
                 ExtractedInstructionDTO(
-                    sourceText = "Sve promiješati.",
-                    text = "Sve promiješati.",
-                    confidence = 0.9,
-                    warnings = emptyList()
+                    text = "Sve promiješati."
                 )
-            ),
-            warnings = emptyList(),
-            confidence = 0.9,
-            requiresReview = false
+            )
         )
 
         val recipe = RecipeVisionMapper.toRecipeWriteDTO(extracted)

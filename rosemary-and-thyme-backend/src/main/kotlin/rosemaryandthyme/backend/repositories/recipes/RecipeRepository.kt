@@ -68,7 +68,12 @@ class RecipeRepository(val dsl: DSLContext) {
      * @param user the owner used for a new recipe.
      * @return the persisted recipe id.
      */
-    fun upsertRecipeBase(recipeId: UUID?, dto: RecipeWriteDTO, user: UsersRecord): UUID {
+    fun upsertRecipeBase(
+        recipeId: UUID?,
+        dto: RecipeWriteDTO,
+        user: UsersRecord,
+        isPrivateOnCreate: Boolean? = null
+    ): UUID {
         /** check if recipe with given id exists. */
         val existingId = dsl.select(RECIPES.ID)
             .from(RECIPES)
@@ -101,6 +106,9 @@ class RecipeRepository(val dsl: DSLContext) {
                 .set(RECIPES.SIDE_NOTES, dto.sideNotes)
                 .set(RECIPES.LIKES, 0)
                 .set(RECIPES.TIMES_MADE, 0)
+                // Recipe Vision drafts pass true here, so they are private in the
+                // initial row insert rather than relying on a later visibility update.
+                .set(RECIPES.IS_PRIVATE, isPrivateOnCreate ?: false)
                 .returningResult(RECIPES.ID)
                 .fetchOne()
                 ?.get(RECIPES.ID) ?: throw IllegalStateException("Failed to insert recipe")

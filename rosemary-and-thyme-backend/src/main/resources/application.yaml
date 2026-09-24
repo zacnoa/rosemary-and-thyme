@@ -35,10 +35,9 @@ resend:
   from: ${RESEND_FROM_EMAIL}
 
 recipe-vision:
-  # Local FastAPI is the default; production can point this at the Runpod HTTPS proxy.
+  # Internal FastAPI service that owns the prompts, schema validation, and its
+  # OpenRouter provider integration.
   base-url: ${RECIPE_VISION_URL:http://localhost:8000}
-  # Optional locally, required when the public Runpod proxy is used.
-  api-key: ${RECIPE_VISION_API_KEY:}
   connect-timeout: ${RECIPE_VISION_CONNECT_TIMEOUT:10s}
   read-timeout: ${RECIPE_VISION_READ_TIMEOUT:120s}
 
@@ -51,4 +50,3 @@ app:
   # The backend origin is reachable exclusively through Cloudflare, so its
   # connecting-IP header is trusted by default. Override to false for a direct deployment.
   trust-cloudflare-connecting-ip: ${TRUST_CLOUDFLARE_CONNECTING_IP:true}
-

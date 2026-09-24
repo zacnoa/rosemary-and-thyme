@@ -25,12 +25,11 @@ import java.net.http.HttpTimeoutException
 import java.time.Duration
 import java.util.UUID
 
-/** Sends one source image to the Python vision service. */
+/** Sends one source image to the internal Recipe Vision service. */
 @Service
 class RecipeVisionService(
     private val rateLimiter: RateLimiterService,
     @Value($$"${recipe-vision.base-url}") baseUrl: String,
-    @Value($$"${recipe-vision.api-key:}") private val apiKey: String,
     @Value($$"${recipe-vision.connect-timeout}") connectTimeout: Duration,
     @Value($$"${recipe-vision.read-timeout}") readTimeout: Duration
 ) {
@@ -50,7 +49,7 @@ class RecipeVisionService(
         )
         .build()
 
-    /** Extracts a normalized recipe without retaining the uploaded source image. */
+    /** Extracts a recipe without retaining the uploaded source image. */
     fun extractRecipe(image: MultipartFile, userId: UUID): ExtractedRecipeDTO {
         require(!image.isEmpty) { "Recipe image must not be empty" }
 
@@ -78,9 +77,6 @@ class RecipeVisionService(
             val request = client.post()
                 .uri("/recipe-vision")
                 .contentType(MediaType.MULTIPART_FORM_DATA)
-                .apply {
-                    if (apiKey.isNotBlank()) header("X-API-Key", apiKey)
-                }
 
             return request
                 .body(multipartBody)

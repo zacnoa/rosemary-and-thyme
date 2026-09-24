@@ -23,13 +23,15 @@ class RecipePersistenceService(private val recipeRepository: RecipeRepository) {
         user: UsersRecord,
         isPrivateOnCreate: Boolean? = null
     ): UUID {
-        val persistedId = recipeRepository.upsertRecipeBase(recipeId, recipe, user)
+        val persistedId = recipeRepository.upsertRecipeBase(
+            recipeId,
+            recipe,
+            user,
+            isPrivateOnCreate
+        )
         recipeRepository.syncIngredients(persistedId, recipe.ingredients, recipe.ingredientsOrder)
         recipeRepository.syncHeroImages(persistedId, recipe.images, recipe.heroImagesOrder)
         recipeRepository.syncInstructions(persistedId, recipe.instructions, recipe.instructionsOrder, recipe.images)
-        if (recipeId == null && isPrivateOnCreate != null) {
-            recipeRepository.updatePrivate(persistedId, isPrivateOnCreate)
-        }
         return persistedId
     }
 

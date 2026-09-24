@@ -252,7 +252,6 @@ Spring imports an optional project-root `.env` file. The file is ignored by Git.
 | `RESEND_API_KEY` | Yes | Resend API key | Provider value |
 | `RESEND_FROM_EMAIL` | Yes | Verified sender address | `noreply@example.com` |
 | `RECIPE_VISION_URL` | No | Python recipe-vision base URL | `http://localhost:8000` |
-| `RECIPE_VISION_API_KEY` | No locally | Shared secret sent to recipe-vision | Empty locally |
 | `RECIPE_VISION_CONNECT_TIMEOUT` | No | Connection timeout | `10s` |
 | `RECIPE_VISION_READ_TIMEOUT` | No | Complete extraction timeout | `120s` |
 | `FRONTEND_URL` | No | CORS origin, email-link base, and OAuth redirect base | `http://localhost:3000` |
@@ -276,7 +275,6 @@ RESEND_API_KEY=your-resend-api-key
 RESEND_FROM_EMAIL=noreply@example.com
 
 RECIPE_VISION_URL=http://localhost:8000
-# RECIPE_VISION_API_KEY=use-the-same-value-as-the-python-service
 
 FRONTEND_URL=http://localhost:3000
 COOKIE_DOMAIN=localhost

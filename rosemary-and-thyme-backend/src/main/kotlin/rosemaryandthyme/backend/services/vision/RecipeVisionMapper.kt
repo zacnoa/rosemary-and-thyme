@@ -16,7 +16,7 @@ object RecipeVisionMapper {
             id to IngredientDTO(
                 id = id,
                 name = extractedIngredient.name
-                    .orFallback(extractedIngredient.sourceText, "Unknown ingredient")
+                    .orFallback("Unknown ingredient")
                     .take(50),
                 amount = extractedIngredient.amount
                     ?.takeIf { it >= BigDecimal.ZERO }
@@ -31,15 +31,14 @@ object RecipeVisionMapper {
             val id = UUID.randomUUID()
             id to InstructionDTO(
                 id = id,
-                text = extractedInstruction.text
-                    .orFallback(extractedInstruction.sourceText, ""),
+                text = extractedInstruction.text,
                 images = emptyList()
             )
         }
 
         return RecipeWriteDTO(
             name = extracted.name.orFallback(extracted.sourceName, "Untitled recipe").take(100),
-            description = extracted.description.orEmpty(),
+            description = "",
             portions = extracted.portions?.takeIf { it > 0 } ?: 1,
             cookTime = extracted.cookTime.orEmpty().take(50),
             difficulty = extracted.difficulty?.takeIf { it in 1..5 } ?: 1,
