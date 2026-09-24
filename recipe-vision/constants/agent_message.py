@@ -18,7 +18,9 @@ Detect language from the ingredients and instructions and set language to its IS
 
 amount contains one exact numeric quantity; convert only unambiguous fractions. For ranges, missing values, or uncertainty, use null. measuring_unit contains only a real unambiguous measurement or count unit; a counted ingredient noun is not automatically a unit. Improve instruction grammar or punctuation only when meaning and language remain unchanged. If an ingredient name or instruction cannot be read safely, return an empty string for name or text.
 
-portions, cook_time, difficulty, and side_notes must be explicitly supported by visible source text. cook_time must be 40m, 2h 30m, or a visible range such as 2h-3h."""
+portions, cook_time, difficulty, and side_notes must be explicitly supported by visible source text. cook_time must be 40m, 2h 30m, or a visible range such as 2h-3h.
+
+Each instruction must represent one practical cooking step. Split instructions at explicit numbered or bulleted lines, clear line breaks, or sentence-ending punctuation only when the following sentence starts a distinct action. Keep related actions together when they form one continuous step. Never invent steps or split unclear text; if no reliable boundary exists, return one instruction."""
 
     UNCERTAINTY = """Never invent missing words, ingredients, quantities, units, times, portions, or instructions. For unclear text, use an empty name or text where appropriate."""
 
