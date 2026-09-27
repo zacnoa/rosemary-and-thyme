@@ -112,7 +112,7 @@ class UserController(
             )
         )
 
-    /** Returns a paginated feed of recipes liked by the current user.
+    /** Returns a paginated feed of public recipes liked by the current user.
      * @param cursor the optional previous-page cursor.
      * @param user the authenticated user.
      * @return `200 OK` with one recipe-feed page.
@@ -125,7 +125,12 @@ class UserController(
     ): ResponseEntity<RecipeFeedPage> =
         ResponseEntity.ok(
             recipeService.recipeFeed(
-                RecipeFeedFilter(q = q, likedByUserId = user.id.dbNotNull("id"), sort = RecipeFeedSort.LIKED_AT_DESC),
+                RecipeFeedFilter(
+                    q = q,
+                    likedByUserId = user.id.dbNotNull("id"),
+                    excludePrivate = true,
+                    sort = RecipeFeedSort.LIKED_AT_DESC
+                ),
                 cursor
             )
         )

@@ -11,6 +11,8 @@ import java.util.UUID
 @Service
 class RecipePersistenceService(private val recipeRepository: RecipeRepository) {
     /** Synchronizes every stored part of a recipe.
+     * Omitted rows are deleted first within each collection; deferred unique
+     * constraints validate the final positions when this transaction commits.
      * @param recipeId the existing recipe id, or `null` for a new recipe.
      * @param recipe the complete desired recipe state.
      * @param user the owner used when inserting a new recipe.

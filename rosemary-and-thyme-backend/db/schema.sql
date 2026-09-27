@@ -105,13 +105,15 @@ CREATE TABLE IF NOT EXISTS app_auth.password_reset_tokens
     CONSTRAINT password_reset_tokens_hash_key UNIQUE (token_hash)
 );
 
+-- Ordered collections may temporarily share positions while a recipe is being
+-- synchronized. Enforce their final order when the save transaction commits.
 CREATE TABLE IF NOT EXISTS public.hero_images
 (
     image_id uuid NOT NULL DEFAULT gen_random_uuid(),
     index integer NOT NULL,
     recipe_id uuid NOT NULL,
     CONSTRAINT hero_images_pkey PRIMARY KEY (image_id),
-    CONSTRAINT hero_images_recipe_id_index_key UNIQUE (recipe_id, index)
+    CONSTRAINT hero_images_recipe_id_index_key UNIQUE (recipe_id, index) DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE IF NOT EXISTS public.images
@@ -130,7 +132,7 @@ CREATE TABLE IF NOT EXISTS public.ingredients
     measuring_unit character varying(20) COLLATE pg_catalog."default" NOT NULL,
     recipe_id uuid NOT NULL,
     CONSTRAINT ingredients_pkey PRIMARY KEY (id),
-    CONSTRAINT ingredients_recipe_id_index_key UNIQUE (recipe_id, index)
+    CONSTRAINT ingredients_recipe_id_index_key UNIQUE (recipe_id, index) DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE IF NOT EXISTS public.instruction_images
@@ -139,7 +141,7 @@ CREATE TABLE IF NOT EXISTS public.instruction_images
     index integer NOT NULL,
     instruction_id uuid NOT NULL,
     CONSTRAINT instruction_images_pkey PRIMARY KEY (image_id),
-    CONSTRAINT instruction_images_instruction_id_index_key UNIQUE (instruction_id, index)
+    CONSTRAINT instruction_images_instruction_id_index_key UNIQUE (instruction_id, index) DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE IF NOT EXISTS public.instructions
@@ -149,7 +151,7 @@ CREATE TABLE IF NOT EXISTS public.instructions
     instruction text COLLATE pg_catalog."default" NOT NULL,
     recipe_id uuid NOT NULL,
     CONSTRAINT instructions_pkey PRIMARY KEY (id),
-    CONSTRAINT instructions_recipe_id_index_key UNIQUE (recipe_id, index)
+    CONSTRAINT instructions_recipe_id_index_key UNIQUE (recipe_id, index) DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE TABLE IF NOT EXISTS public.recipes

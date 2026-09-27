@@ -168,6 +168,14 @@ class RecipeRepository(val dsl: DSLContext) {
 
         val (toUpdate, toInsert, toDelete) = diffByOrder(existingIds, ingredients.values, { it.id }, order)
 
+        // Remove omitted rows before assigning the remaining and new positions.
+        if (toDelete.isNotEmpty()) {
+            dsl.deleteFrom(INGREDIENTS)
+                .where(INGREDIENTS.RECIPE_ID.eq(recipeId))
+                .and(INGREDIENTS.ID.`in`(toDelete))
+                .execute()
+        }
+
         /** update all ingredients. */
         if (toUpdate.isNotEmpty()) {
             dsl.batch(
@@ -198,13 +206,6 @@ class RecipeRepository(val dsl: DSLContext) {
             check(result.all { it == 1 }) { "Error while inserting ingredients" }
         }
 
-        /** delete ingredients. */
-        if (toDelete.isNotEmpty()) {
-            dsl.deleteFrom(INGREDIENTS)
-                .where(INGREDIENTS.RECIPE_ID.eq(recipeId))
-                .and(INGREDIENTS.ID.`in`(toDelete))
-                .execute()
-        }
     }
 
     /** Synchronizes a recipe's instructions, images, and order.
@@ -229,6 +230,16 @@ class RecipeRepository(val dsl: DSLContext) {
             .toSet()
 
         val (toUpdate, toInsert, toDelete) = diffByOrder(existingIds, instructions.values, { it.id }, order)
+
+        // Capture image ids before the instruction deletion cascades to its gallery.
+        if (toDelete.isNotEmpty()) {
+            val imageIds = selectInstructionImageIds(toDelete)
+            dsl.deleteFrom(INSTRUCTIONS)
+                .where(INSTRUCTIONS.RECIPE_ID.eq(recipeId))
+                .and(INSTRUCTIONS.ID.`in`(toDelete))
+                .execute()
+            deleteImages(imageIds)
+        }
 
         /** update existing instructions. */
         if (toUpdate.isNotEmpty()) {
@@ -263,15 +274,6 @@ class RecipeRepository(val dsl: DSLContext) {
             syncInstructionImages(inst.id, inst.images, images)
         }
 
-        /** cascade setting on instruction Images ensures they are deleted after deleting corresponding instruction. */
-        if (toDelete.isNotEmpty()) {
-            val imageIds = selectInstructionImageIds(toDelete)
-            dsl.deleteFrom(INSTRUCTIONS)
-                .where(INSTRUCTIONS.RECIPE_ID.eq(recipeId))
-                .and(INSTRUCTIONS.ID.`in`(toDelete))
-                .execute()
-            deleteImages(imageIds)
-        }
     }
 
     /** Synchronizes a recipe's hero images and order.
@@ -287,6 +289,13 @@ class RecipeRepository(val dsl: DSLContext) {
         val existingIds = selectHeroImageIds(recipeId)
         val heroImages = order.mapNotNull { images[it] }
         val (toUpdate, toInsert, toDelete) = diffByOrder(existingIds, heroImages, { it.id }, order)
+
+        // Deleting an image cascades to its hero_images row and frees its position.
+        if (toDelete.isNotEmpty()) {
+            dsl.deleteFrom(IMAGES)
+                .where(IMAGES.ID.`in`(toDelete))
+                .execute()
+        }
 
         // UPDATE - spans two tables
         if (toUpdate.isNotEmpty()) {
@@ -326,12 +335,6 @@ class RecipeRepository(val dsl: DSLContext) {
             }
         }
 
-        // DELETE - CASCADE deletes the matching hero_images row automatically
-        if (toDelete.isNotEmpty()) {
-            dsl.deleteFrom(IMAGES)
-                .where(IMAGES.ID.`in`(toDelete))
-                .execute()
-        }
     }
 
     /** Synchronizes one instruction's image order.
@@ -348,6 +351,13 @@ class RecipeRepository(val dsl: DSLContext) {
         val existingIds = selectInstructionImageIds(instructionId)
         val instructionImages = imageIds.mapNotNull { images[it] }
         val (toUpdate, toInsert, toDelete) = diffByOrder(existingIds, instructionImages, { it.id }, imageIds)
+
+        // Deleting an image cascades to its instruction_images row before reordering.
+        if (toDelete.isNotEmpty()) {
+            dsl.deleteFrom(IMAGES)
+                .where(IMAGES.ID.`in`(toDelete))
+                .execute()
+        }
 
         // UPDATE
         if (toUpdate.isNotEmpty()) {
@@ -387,12 +397,6 @@ class RecipeRepository(val dsl: DSLContext) {
             }
         }
 
-        // DELETE - CASCADE deletes the matching instruction_images row automatically
-        if (toDelete.isNotEmpty()) {
-            dsl.deleteFrom(IMAGES)
-                .where(IMAGES.ID.`in`(toDelete))
-                .execute()
-        }
     }
 
     /** Finds a recipe base row.

@@ -183,7 +183,7 @@ The database is split into two PostgreSQL schemas:
 - `app_auth` contains users, sessions, OAuth identities, email-verification tokens, and password-reset tokens.
 - `public` contains recipes, ingredients, instructions, images, ordered image relationships, and recipe likes.
 
-Foreign keys use cascading deletion where the child data belongs to an account, recipe, or instruction. Composite unique keys preserve per-recipe ordering, while the composite primary key on `recipe_likes (recipe_id, user_id)` prevents duplicate likes.
+Foreign keys use cascading deletion where the child data belongs to an account, recipe, or instruction. The four composite unique constraints for ingredient, instruction, hero-image, and instruction-image positions are `DEFERRABLE INITIALLY DEFERRED`: each collection deletes omitted rows first, and PostgreSQL checks the final positions when the recipe transaction commits. This allows swaps while still rejecting duplicate final positions. The composite primary key on `recipe_likes (recipe_id, user_id)` prevents duplicate likes.
 
 Search uses PostgreSQL's `pg_trgm` extension, the `%` similarity operator, and `similarity(...)` ordering. `db/indexes.sql` adds the GIN trigram index plus B-tree indexes for ownership filters, account cleanup, foreign keys, and each cursor-pagination order.
 
@@ -324,6 +324,15 @@ Then create `.env` from the example above and start the API:
 ./gradlew bootRun
 ```
 
+For an existing database, apply `db/migrations/002_defer_recipe_order_constraints.sql`
+before using the updated recipe synchronization. Re-running `schema.sql` does not
+change constraints on existing tables. The migration replaces all four ordering
+constraints in one transaction and preserves existing rows:
+
+```bash
+docker compose -f docker/docker-compose.yaml exec -T postgres psql -v ON_ERROR_STOP=1 -U noa -d rosemary_and_thyme < db/migrations/002_defer_recipe_order_constraints.sql
+```
+
 The API starts at `http://localhost:8080` unless Spring's server configuration is overridden.
 
 For recipe extraction, start the Python `recipe-vision` service on port 8000
@@ -357,4 +366,4 @@ The named PostgreSQL volume keeps the database between container restarts. Add `
 | `./gradlew build` | Generate jOOQ sources, compile, test, and create the executable Spring Boot JAR. |
 | `./gradlew bootJar` | Create only the executable Spring Boot JAR in `build/libs`. |
 
-The plain Gradle `jar` task is disabled so deployments cannot accidentally select a non-executable archive. The current automated coverage consists of a basic `@SpringBootTest` context-load test; authentication, repository, recipe transaction, and integration flows remain candidates for broader test coverage.
+The plain Gradle `jar` task is disabled so deployments cannot accidentally select a non-executable archive. Tests cover application context loading, Recipe Vision mapping, and image cleanup around recipe persistence failures.

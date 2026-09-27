@@ -276,7 +276,7 @@ class RecipeService(
         return saveRecipeInternal(null, recipe, imageFiles, user, isPrivate)
     }
 
-    private  fun saveRecipeInternal(
+    private fun saveRecipeInternal(
         recipeId: UUID?,
         recipe: RecipeWriteDTO,
         imageFiles: Map<UUID, MultipartFile>,
@@ -285,20 +285,15 @@ class RecipeService(
     ): RecipeDTO {
         validateImageFiles(recipe, recipeId, imageFiles)
 
+        // Capture removed images before saving, but delete them only after commit.
+        val existingImages = recipeId?.let { recipeRepository.selectAllImagesForRecipe(it) } ?: emptyMap()
+        val deletedImages = existingImages.filterKeys { it !in recipe.images }
         val uploadedUrls = mutableListOf<Pair<UUID, String>>()
 
-        return try {
+        val persistedId = try {
             val newImages = recipe.images.filter { (id, img) ->
                 img.url == null && imageFiles.containsKey(id)
             }
-
-            // images the DB still has for this recipe that the client didn't send back -
-            // i.e. what the user actually removed. Their urls only exist in this
-            // "before" snapshot, never in the client's submitted `recipe.images` (which
-            // by definition no longer contains them), so that map must not be used to
-            // look them up.
-            val existingImages = recipeId?.let { recipeRepository.selectAllImagesForRecipe(it) } ?: emptyMap()
-            val deletedImages = existingImages.filterKeys { it !in recipe.images }
 
             val uploaded = newImages.map { (tempId, _) ->
                     val file = imageFiles[tempId]!!
@@ -318,25 +313,24 @@ class RecipeService(
                 }
             }
 
-            val persistedId = recipePersistenceService.save(
+            recipePersistenceService.save(
                 recipeId,
                 recipe.copy(images = uploadedImages),
                 user,
                 isPrivateOnCreate
             )
 
-            // The DB transaction has committed. Only now can old remote files be removed.
-             destroyCloudinaryImages(deletedImages.values)
-
-            findRecipeById(persistedId, user.id)
-
         } catch (e: Exception) {
-            /** rollback for failed database save. */
+            // Compensate only for failed uploads or database persistence.
             if (uploadedUrls.isNotEmpty()) {
-               destroyCloudinaryImages(uploadedUrls.map { it.second })
+                destroyCloudinaryImages(uploadedUrls.map { it.second })
             }
             throw e
         }
+
+        // Persistence has committed; later failures must not remove saved images.
+        destroyCloudinaryImages(deletedImages.values)
+        return findRecipeById(persistedId, user.id)
     }
 
     /** Validates image metadata and multipart files before saving.
