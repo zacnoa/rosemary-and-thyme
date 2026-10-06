@@ -42,9 +42,14 @@ Rosemary & Thyme is my attempt at creating a recipe application centered around 
 
 The name **Rosemary & Thyme** comes from the former name of Dandelion's cabaret in *The Witcher 3: Wild Hunt*.
 
+## Navigation
+Go to rosemary-and-thyme-frontend for the frontend code
+Go to rosemary-and-thyme-backend for the backend code
+Go to recipe-vision for the code concerning image to recipe conversion.
+
 ## What's Next
 
-* [ ] **Recipe extraction from images** — Use an LLM to extract recipes from images and semantically format them into the structure expected by Rosemary & Thyme.
+* [x] **Recipe extraction from images** — Use an LLM to extract recipes from images and semantically format them into the structure expected by Rosemary & Thyme.
 * [ ] **Recipe tags** — Add a tagging system to make organizing and searching through recipes easier.
 * [ ] **Recipe forking** — Allow users to fork another user's recipe and create their own modified version while preserving its history.
 
