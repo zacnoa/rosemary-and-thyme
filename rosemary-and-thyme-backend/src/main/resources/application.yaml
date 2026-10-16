@@ -1,52 +1,6 @@
-spring:
-  config:
-    import: optional:file:.env[.properties]
+ktor:
+  deployment:
+    port: 8080
   application:
-    name: rosemary-and-thyme-backend
-  datasource:
-    url: ${DB_URL}
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${GOOGLE_CLIENT_ID}
-            client-secret: ${GOOGLE_CLIENT_SECRET}
-            scope: openid,email,profile
-  servlet:
-    multipart:
-      # Caps recipe image uploads (PUT /recipe/{id}) - per-file cap keeps a single
-      # oversized photo from being accepted at all, the request cap accounts for
-      # several images (hero + steps) riding in one multipart request together.
-      # A breach throws MaxUploadSizeExceededException, handled in
-      # GlobalExceptionHandler with a message stating both limits.
-      max-file-size: 8MB
-      max-request-size: 30MB
-
-cloudinary:
-  cloud-name: ${CLOUDINARY_NAME}
-  api-key: ${CLOUDINARY_KEY}
-  api-secret: ${CLOUDINARY_SECRET}
-
-resend:
-  api-key: ${RESEND_API_KEY}
-  from: ${RESEND_FROM_EMAIL}
-
-recipe-vision:
-  # Internal FastAPI service that owns the prompts, schema validation, and its
-  # OpenRouter provider integration.
-  base-url: ${RECIPE_VISION_URL:http://localhost:8000}
-  connect-timeout: ${RECIPE_VISION_CONNECT_TIMEOUT:10s}
-  read-timeout: ${RECIPE_VISION_READ_TIMEOUT:120s}
-
-app:
-  # used to build the verification link sent in the email
-  frontend-url: ${FRONTEND_URL:http://localhost:3000}
-  # domain the session cookie is scoped to, so it's shared between api.<domain> and <domain>;
-  # defaults to localhost so cookies still work for local dev
-  cookie-domain: ${COOKIE_DOMAIN:localhost}
-  # The backend origin is reachable exclusively through Cloudflare, so its
-  # connecting-IP header is trusted by default. Override to false for a direct deployment.
-  trust-cloudflare-connecting-ip: ${TRUST_CLOUDFLARE_CONNECTING_IP:true}
+    modules:
+      - rosemary_and_thyme.RoutingKt.configureRouting

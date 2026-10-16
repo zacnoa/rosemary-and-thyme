@@ -1,25 +1,30 @@
-services: # definira kontejnere koje želiš pokrenuti
-  postgres: # naziv servisa (koristiš ga za spajanje između servisa)
-    image: postgres:16             # koju Docker sliku koristi (verzija 16)
-    environment: # environment varijable unutar kontejnera
-      POSTGRES_DB: rosemary_and_thyme     # naziv baze koja se automatski kreira
-      POSTGRES_USER: noa      # korisničko ime
-      POSTGRES_PASSWORD: noa  # lozinka
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale-provider=icu --icu-locale=und"
-    ports:
-      - "432:5432"                # HOST:KONTEJNER - izlaže port van na tvoj PC
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: rosemary_and_thyme
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
     volumes:
-      - postgres_data:/var/lib/postgresql/data  # čuva podatke i nakon restarta kontejnera
+      - postgres:/var/lib/postgresql/data
+    ports:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d rosemary_and_thyme"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   pgadmin:
-    image: dpage/pgadmin4          # pgAdmin slika
+    image: dpage/pgadmin4:latest
     environment:
-      PGADMIN_DEFAULT_EMAIL: noa@noa.com    # login za pgAdmin sučelje
-      PGADMIN_DEFAULT_PASSWORD: noa
+      PGADMIN_DEFAULT_EMAIL: user@user.com
+      PGADMIN_DEFAULT_PASSWORD: password
     ports:
-      - "5050:80"                  # pgAdmin dostupan na localhost:5050
+      - "80"
     depends_on:
-      - postgres                   # čeka da postgres krene prije pgAdmina
+      postgres:
+        condition: service_healthy
 
 volumes:
-  postgres_data:                   # definira named volume - Docker upravlja gdje se podaci čuvaju
+  postgres:
