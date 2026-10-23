@@ -3,4 +3,9 @@ ktor:
     port: 8080
   application:
     modules:
-      - rosemary_and_thyme.RoutingKt.configureRouting
+      - rosemary_and_thyme.modules.ApplicationModulesKt.modules
+
+database:
+  url: "${DB_URL:jdbc:postgresql://localhost:5432/rosemary_and_thyme}"
+  user: "${DB_USER:user}"
+  password: "${DB_PASSWORD:password}"

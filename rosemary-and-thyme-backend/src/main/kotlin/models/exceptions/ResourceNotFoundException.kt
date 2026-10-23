@@ -1,0 +1,3 @@
+package rosemary_and_thyme.models.exceptions
+
+class ResourceNotFoundException(message:String):RuntimeException(message)

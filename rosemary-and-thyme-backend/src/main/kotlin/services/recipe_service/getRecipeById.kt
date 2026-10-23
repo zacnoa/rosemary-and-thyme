@@ -1,0 +1,42 @@
+package rosemary_and_thyme.services.recipe_service
+
+import kotlinx.serialization.json.Json
+import rosemary_and_thyme.jooq.public.tables.references.RECIPES
+import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
+import rosemary_and_thyme.models.recipe.RecipeContentDTO
+import rosemary_and_thyme.models.recipe.RecipeDTO
+import rosemary_and_thyme.services.RecipeService
+import rosemary_and_thyme.services.Service.dsl
+import java.util.UUID
+
+
+fun RecipeService.getRecipeById(id: UUID):RecipeDTO=
+    
+    dsl.selectFrom(RECIPES)
+    .where(RECIPES.ID.eq(id))
+    .fetchOne()?.let{record->
+        val content=Json.decodeFromString<RecipeContentDTO>(record.getValue(RECIPES.CONTENT).data())
+
+        RecipeDTO(
+                id=record.getValue(RECIPES.ID).toString(),
+                userId=record.getValue(RECIPES.USER_ID).toString(),
+                userName=checkNotNull(record.getValue(RECIPES.USER_NAME)),
+                title=checkNotNull(record.getValue(RECIPES.TITLE)),
+                description=checkNotNull(record.getValue(RECIPES.DESCRIPTION)),
+                likes=checkNotNull(record.getValue(RECIPES.LIKES)),
+                timesMade = checkNotNull(record.getValue(RECIPES.TIMES_MADE)),
+                portions=checkNotNull(record.getValue(RECIPES.PORTIONS)),
+                difficulty = checkNotNull(record.getValue(RECIPES.DIFFICULTY)),
+                sideNote=checkNotNull(record.getValue(RECIPES.SIDE_NOTES)),
+                createdDate=record.getValue(RECIPES.CREATED_DATE).toString(),
+                isPrivate=checkNotNull(record.getValue(RECIPES.IS_PRIVATE)),
+
+                    
+                images=content.images,
+                ingredients=content.ingredients,
+                instructions=content.instructions,
+                ingredientsOrder=content.ingredientsOrder,
+                heroImagesOrder=content.heroImagesOrder,
+                instructionsOrder=content.instructionsOrder
+            )
+    } ?: throw ResourceNotFoundException("Recipe with that id does not exist")
