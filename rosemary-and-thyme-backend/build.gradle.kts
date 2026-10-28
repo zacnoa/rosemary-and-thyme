@@ -29,6 +29,9 @@ dependencies {
     implementation(ktorLibs.server.contentNegotiation)
     implementation(ktorLibs.serialization.kotlinx.json)
 
+    implementation(libs.spring.security.crypto)
+    implementation(libs.password4j)
+
     implementation(libs.jooq)
     implementation(libs.jooq.kotlin)
 

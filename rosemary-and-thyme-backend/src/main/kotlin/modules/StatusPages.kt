@@ -14,6 +14,7 @@ import io.ktor.server.response.respond
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
+import rosemary_and_thyme.models.exceptions.UserAlreadyExists
 
 
 suspend fun ApplicationCall.respondProblem(status: HttpStatusCode, type: String, title: String, detail: String) {
@@ -52,6 +53,22 @@ fun Application.configureStatusPages() {
                 detail = cause.message ?: "Resource not found"
             )
 
+        }
+        exception<UserAlreadyExists> { call, cause ->
+            call.respondProblem(
+                status = HttpStatusCode.Conflict,
+                type = "problem/user-exists",
+                title = "Username already exists",
+                detail = cause.message ?: "A user with that username already exists"
+            )
+        }
+        exception<IllegalStateException> { call, cause ->
+            call.respondProblem(
+                status = HttpStatusCode.InternalServerError,
+                type = "problem/internal",
+                title = "Something went wrong",
+                detail = "Something went wrong on our end, Please try again later or contact us at"
+            )
         }
 
     }

@@ -31,6 +31,6 @@ fun Route.recipeQueryingRoutes() {
         
         val recipe=Service.recipeService.getRecipeById(id)
 
-        call.respond(status= HttpStatusCode.OK,recipe)
+        call.respond(status= HttpStatusCode.OK,message=recipe)
     }
 }
