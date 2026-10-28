@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS app_auth.users(
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     password varchar(255),
     username varchar(60) NOT NULL,
+    --Here we add a unique constraint on a normalized(lowercase+trim) username for use when searching for a specific user
+    --to make it easier to distinguish between users
+    username_normalized varchar(60) UNIQUE NOT NULL,
     --Automatic UNIQUE index used by registration and login queries with `WHERE email = :email`
     email varchar(255) UNIQUE,
     email_verified boolean NOT NULL DEFAULT false,

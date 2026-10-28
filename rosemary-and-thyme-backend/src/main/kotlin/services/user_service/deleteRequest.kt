@@ -1,0 +1,32 @@
+package rosemary_and_thyme.services.user_service
+
+import rosemary_and_thyme.jooq.app_auth.tables.references.USERS
+import rosemary_and_thyme.models.user.UserPrincipal
+import rosemary_and_thyme.services.Service.dsl
+import rosemary_and_thyme.services.UserService
+import java.time.OffsetDateTime
+
+
+fun UserService.requestDelete(user: UserPrincipal) =
+    
+   dsl.update(USERS)
+        .set(USERS.DELETION_REQUESTED_AT, OffsetDateTime.now())
+        .where(USERS.ID.eq(user.id))
+       .execute().also{affectedRows->
+           check(affectedRows==1){
+               "Expected one affecter row, but updated $affectedRows"
+           }
+       }
+
+
+
+fun UserService.cancelDelete(user:UserPrincipal) =
+   dsl.update(USERS)
+        .setNull(USERS.DELETION_REQUESTED_AT)
+        .where(USERS.ID.eq(user.id))
+       .execute().also{affectedRows->
+           check(affectedRows==1){
+               "Expected one affecter row, but updated $affectedRows"
+           }
+       }
+

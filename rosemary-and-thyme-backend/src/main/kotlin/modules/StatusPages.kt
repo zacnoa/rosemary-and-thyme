@@ -1,13 +1,58 @@
 package rosemary_and_thyme.modules
 
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.request.uri
+import io.ktor.server.response.header
+import io.ktor.server.response.respond
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 
-fun Application.configureStatusPages(){
-    install(StatusPages){
-        exception<ResourceNotFoundException> {call,cause->  }
+
+suspend fun ApplicationCall.respondProblem(status: HttpStatusCode, type: String, title: String, detail: String) {
+
+    response.header(HttpHeaders.ContentType, ContentType.Application.ProblemJson.toString())
+
+    //RFC 9457 Problem Details
+    respond(
+        status = status,
+        message = buildJsonObject {
+            put("type", type)
+            put("title", title)
+            put("status", status.value)
+            put("detail", detail)
+            put("instance", request.uri)
+        }
+
+    )
+}
+
+fun Application.configureStatusPages() {
+    install(StatusPages) {
+        exception<BadRequestException> { call, cause ->
+            call.respondProblem(
+                status = HttpStatusCode.BadRequest,
+                type = "problem/bad-request",
+                title = "Bad Request",
+                detail = cause.message ?: "Bad Request"
+            )
+        }
+        exception<ResourceNotFoundException> { call, cause ->
+            call.respondProblem(
+                status = HttpStatusCode.NotFound,
+                type = "problem/not-found",
+                title = "Resource not found",
+                detail = cause.message ?: "Resource not found"
+            )
+
+        }
 
     }
 }

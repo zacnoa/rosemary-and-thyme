@@ -1,6 +1,7 @@
 package rosemary_and_thyme.routes.recipe
 
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
@@ -24,12 +25,12 @@ fun Route.recipeQueryingRoutes() {
      */
     get("/{id}") {
 
-        TODO("Hadndle invalid UUID parameter")
-        TODO("Impelment RFC 9457")
-        val id=call.pathParameters["id"]
-        val recipe=Service.recipeService.getRecipeById(UUID.fromString(id))
 
-        call.response.status(HttpStatusCode.OK)
-        call.respond( recipe)
+        val id=call.pathParameters["id"].runCatching { UUID.fromString(this)}
+            .getOrElse { throw BadRequestException ("The id of the recipe does not conform to the UUID standard")}
+        
+        val recipe=Service.recipeService.getRecipeById(id)
+
+        call.respond(status= HttpStatusCode.OK,recipe)
     }
 }

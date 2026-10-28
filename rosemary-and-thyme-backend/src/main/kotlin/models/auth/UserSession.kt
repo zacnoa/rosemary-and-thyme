@@ -3,4 +3,4 @@ import kotlinx.serialization.Serializable
 
 
 @Serializable
-data class UserSession(val cookieHash:String)
+data class UserSession(val cookie:String)
