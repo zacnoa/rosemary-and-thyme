@@ -17,6 +17,14 @@ import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.models.exceptions.UserAlreadyExists
 
 
+/**
+ * Responds with an RFC 9457 problem-details document using `application/problem+json`.
+ *
+ * @param status HTTP status returned to the client
+ * @param type identifier for the problem category
+ * @param title short, human-readable problem summary
+ * @param detail explanation specific to this occurrence
+ */
 suspend fun ApplicationCall.respondProblem(status: HttpStatusCode, type: String, title: String, detail: String) {
 
     response.header(HttpHeaders.ContentType, ContentType.Application.ProblemJson.toString())
@@ -35,6 +43,10 @@ suspend fun ApplicationCall.respondProblem(status: HttpStatusCode, type: String,
     )
 }
 
+/**
+ * Maps known application exceptions to RFC 9457 responses.
+ * Unexpected illegal states are returned as generic internal-server errors.
+ */
 fun Application.configureStatusPages() {
     install(StatusPages) {
         exception<BadRequestException> { call, cause ->

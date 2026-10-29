@@ -10,6 +10,10 @@ import rosemary_and_thyme.models.auth.UserSession
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 
+/**
+ * Configures cookie-based storage for [UserSession].
+ * The cookie is HTTP-only, HTTPS-only, and expires after 30 days.
+ */
 fun Application.configureSession(){
     install(Sessions){
         cookie<UserSession>("user_session"){

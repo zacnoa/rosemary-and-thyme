@@ -7,6 +7,14 @@ import rosemary_and_thyme.services.AuthService
 import rosemary_and_thyme.services.CryptoService
 import rosemary_and_thyme.services.Service.dsl
 
+/**
+ * Authenticates a user with an email address and password.
+ *
+ * @param email email address associated with the account
+ * @param password plaintext password supplied by the user
+ * @return the authenticated [UserPrincipal]
+ * @throws AuthenticationException if the credentials are invalid
+ */
 fun AuthService.loginUser(email: String, password: String): UserPrincipal {
 
     val hashedPassword = CryptoService.hashPassword(password)

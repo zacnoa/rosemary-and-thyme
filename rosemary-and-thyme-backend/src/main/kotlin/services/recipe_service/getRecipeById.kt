@@ -10,12 +10,19 @@ import rosemary_and_thyme.services.Service.dsl
 import java.util.UUID
 
 
+/**
+ * Retrieves a recipe and maps its JSON content column to [RecipeDTO].
+ *
+ * @param id identifier of the requested recipe
+ * @return the matching recipe
+ * @throws ResourceNotFoundException if no recipe exists with the supplied identifier
+ */
 fun RecipeService.getRecipeById(id: UUID):RecipeDTO=
     
     dsl.selectFrom(RECIPES)
     .where(RECIPES.ID.eq(id))
     .fetchOne()?.let{record->
-        val content=Json.decodeFromString<RecipeContentDTO>(record.getValue(RECIPES.CONTENT).data())
+        val content=Json.decodeFromString<RecipeContentDTO>(checkNotNull(record.getValue(RECIPES.CONTENT)).data())
 
         RecipeDTO(
                 id=record.getValue(RECIPES.ID).toString(),

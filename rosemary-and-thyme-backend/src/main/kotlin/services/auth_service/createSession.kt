@@ -7,6 +7,13 @@ import rosemary_and_thyme.services.CryptoService
 import rosemary_and_thyme.services.Service.dsl
 import java.util.UUID
 
+/**
+ * Creates a database-backed session for a user.
+ * Only the SHA-256 digest is persisted; the raw token is returned to the client session.
+ *
+ * @param userId identifier of the user who owns the session
+ * @return a [UserSession] containing the raw session token
+ */
 fun AuthService.createSession(userId: UUID): UserSession{
     val token= CryptoService.generateRandomToken()
     val hashedToken= CryptoService.sha256(token)

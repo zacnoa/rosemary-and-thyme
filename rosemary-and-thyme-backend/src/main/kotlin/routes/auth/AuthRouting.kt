@@ -18,30 +18,20 @@ import rosemary_and_thyme.models.requests.LoginRequest
 import rosemary_and_thyme.services.auth_service.createSession
 import rosemary_and_thyme.services.auth_service.loginUser
 
-/**
- * Routes used to login/register and manage user credentials
- */
+/** Registers public authentication and credential-management routes under `/auth`. */
 fun Route.authRoutes() {
     route("/auth") {
-        /**
-         * Endpoint used for registering a user
-         */
+        // Registers a user from a RegisterRequest body.
         post("/register") {
             val request=call.receive<RegisterRequest>()
             Service.authService.registerUser(username = request.username, password = request.password,email=request.email)
             call.respond(status= HttpStatusCode.OK,"You have succesfully signed up")
         }
-        /**
-         * Endpoint used for verifying a user's email
-         */
+        // Verifies a user's email address.
         post("/verify-email") {}
-        /**
-         * Endpoint used for resending the verification email
-         */
+        // Resends the email-verification message.
         post("/verify-email/resend") {}
-        /**
-         * Endpoint used for user login
-         */
+        // Authenticates a LoginRequest and creates a cookie-backed session.
         post("/login") {
             val request=call.receive<LoginRequest>()
             val userPrincipal=Service.authService.loginUser(request.email,request.password)
@@ -52,21 +42,13 @@ fun Route.authRoutes() {
             
 
         }
-        /**
-         * Endpoint used for Google login/registration
-         */
+        // Starts Google authentication or registration.
         get("/google") {}
-        /**
-         * Endpoint used for sending the password reset email
-         */
+        // Sends a password-reset message.
         post("/password-reset/request") {}
-        /**
-         * Endpoint used for processing a password reset
-         */
+        // Confirms a password-reset request.
         post("/password-reset/confirm") {}
-        /**
-         * Endpoint used for logging out a user
-         */
+        // Ends the current user session.
         post("/logout") {}
     }
 }

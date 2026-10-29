@@ -9,6 +9,7 @@ import rosemary_and_thyme.routes.auth.authRoutes
 import rosemary_and_thyme.routes.recipe.recipeRoutes
 import rosemary_and_thyme.routes.user.userRoutes
 
+/** Registers the root endpoint and all application route groups. */
 fun Application.configureRouting() {
     routing {
         get("/") {

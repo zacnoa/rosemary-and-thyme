@@ -10,19 +10,13 @@ import rosemary_and_thyme.services.Service
 import rosemary_and_thyme.services.recipe_service.getRecipeById
 import java.util.UUID
 
-/**
- * Routes used for get requests for recipes
- */
+/** Registers read-only recipe routes. */
 fun Route.recipeQueryingRoutes() {
-    /**
-     * Endpoint for searching for a recipe using a set of parameters
-     */
+    // Searches for recipes using query parameters.
     get("/search") {
         
     }
-    /**
-     * Endpoint for getting a recipe by its id
-     */
+    // Returns a recipe identified by a UUID path parameter.
     get("/{id}") {
 
 

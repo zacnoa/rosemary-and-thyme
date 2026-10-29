@@ -7,6 +7,13 @@ import rosemary_and_thyme.services.UserService
 import java.time.OffsetDateTime
 
 
+/**
+ * Schedules the authenticated user's account for deletion.
+ *
+ * @param user user whose deletion timestamp should be set
+ * @return the number of updated rows
+ * @throws IllegalStateException if exactly one account was not updated
+ */
 fun UserService.requestDelete(user: UserPrincipal) =
     
    dsl.update(USERS)
@@ -20,6 +27,13 @@ fun UserService.requestDelete(user: UserPrincipal) =
 
 
 
+/**
+ * Cancels a pending account-deletion request.
+ *
+ * @param user user whose deletion timestamp should be cleared
+ * @return the number of updated rows
+ * @throws IllegalStateException if exactly one account was not updated
+ */
 fun UserService.cancelDelete(user:UserPrincipal) =
    dsl.update(USERS)
         .setNull(USERS.DELETION_REQUESTED_AT)

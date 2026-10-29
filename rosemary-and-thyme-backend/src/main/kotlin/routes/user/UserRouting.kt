@@ -13,31 +13,22 @@ import rosemary_and_thyme.services.Service
 import rosemary_and_thyme.services.user_service.cancelDelete
 import rosemary_and_thyme.services.user_service.requestDelete
 
-/**
- * Routes used by the user to manage their account
- */
+/** Registers authenticated account-management routes under `/user`. */
 fun Route.userRoutes() {
     route("/user") {
-        /**
-         * Endpoint used for getting basic information of a logged in user
-         */
+        // Returns public account data from the authenticated principal.
         get("/aboutme") {
-            //Because this endpoint is behind the authenticate("auth-session") layer we can safely assume that the Principal will never be null
             val userDTO = checkNotNull(call.principal<UserPrincipal>()?.toDTO())
 
             call.respond(status = HttpStatusCode.OK, message = userDTO)
         }
-        /**
-         * Endpoint used for posting a delete request of an account
-         */
+        // Schedules the authenticated account for deletion after 30 days.
         post("/delete") {
             Service.userService.requestDelete(checkNotNull(call.principal<UserPrincipal>()))
         }
-        /**
-         * Endpoint used for deleting a deletion request of an account
-         */
+        // Cancels the authenticated account's pending deletion.
         delete("/delete") {
-            Service.userService.cancelDelete(checkNotNull(call.principal<UserPrincipal>())))
+            Service.userService.cancelDelete(checkNotNull(call.principal<UserPrincipal>()))
         }
     }
 }

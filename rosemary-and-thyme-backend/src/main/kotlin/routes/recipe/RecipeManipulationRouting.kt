@@ -6,36 +6,20 @@ import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 
-/**
- * Routes used for post/put/patch requests on recipes
- */
+/** Registers routes that create, update, and delete recipe data. */
 fun Route.recipeManipulationRoutes() {
-    /**
-     * Endpoint used for posting a new recipe.
-     */
+    // Creates a recipe.
     post { }
-    /**
-     * Endpoint used for updating an existing recipe
-     */
+    // Replaces an existing recipe.
     put("/{id}") {}
-    /**
-     * Endpoint used for creating a like entry
-     */
+    // Creates a like for a recipe.
     post("/{id}/like") {}
-    /**
-     * Endpoint used for deleting a liked entry
-     */
+    // Removes the current user's like from a recipe.
     delete("/{id}/like") {}
-    /**
-     * Endpoint used for updating the made counter for recipe
-     */
+    // Records that a recipe was made.
     post("/{id}/made") {}
-    /**
-     * Endpoint used for deleting a recipe
-     */
+    // Deletes a recipe.
     delete("/{id}") {}
-    /**
-     * Endpoint used for toggling the private flag of a recipe
-     */
+    // Toggles a recipe's private flag.
     patch("/{id}/private") {}
 }

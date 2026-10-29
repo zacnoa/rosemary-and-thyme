@@ -8,6 +8,12 @@ import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 
+/**
+ * Creates a PostgreSQL [DSLContext] backed by a HikariCP pool of up to ten connections.
+ * The data source is closed automatically when the application stops.
+ *
+ * @return the jOOQ context used by the service layer
+ */
 fun Application.configureDatabase(): DSLContext{
 
     val databaseConfig=environment.config.config("database")

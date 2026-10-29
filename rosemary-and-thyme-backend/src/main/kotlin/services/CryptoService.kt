@@ -10,6 +10,10 @@ import java.security.SecureRandom
 import java.util.HexFormat
 import kotlin.io.encoding.Base64
 
+/**
+ * Provides the cryptographic operations used for passwords and session tokens.
+ * Passwords are encoded with Argon2id, while session tokens are generated with [SecureRandom].
+ */
 object CryptoService {
 
     private const val MEMORY_KIB = 19 * 1024
@@ -33,13 +37,32 @@ object CryptoService {
                 Argon2.ID
             )
         )
-
+    
+    /**
+     * Encodes a password with Argon2id and a randomly generated salt.
+     *
+     * @param password plaintext password to encode
+     * @return an encoded password containing the algorithm parameters and salt
+     */
     fun hashPassword(password: String): String =
         checkNotNull(passwordEncoder.encode(password))
 
+    /**
+     * Verifies a plaintext password against an Argon2id-encoded password.
+     *
+     * @param password plaintext password to verify
+     * @param passwordHash previously encoded password
+     * @return `true` when the password matches the encoded value
+     */
     fun matchesPassword(password: String, passwordHash: String): Boolean =
         passwordEncoder.matches(password, passwordHash)
 
+    /**
+     * Computes the SHA-256 digest of a UTF-8 string.
+     *
+     * @param value value to hash
+     * @return the digest as a lowercase hexadecimal string
+     */
     fun sha256(value: String): String {
         val bytes = MessageDigest.getInstance("SHA-256")
             .digest(value.toByteArray(StandardCharsets.UTF_8))
@@ -47,6 +70,11 @@ object CryptoService {
         return HexFormat.of().formatHex(bytes)
     }
 
+    /**
+     * Generates a cryptographically secure 256-bit session token.
+     *
+     * @return a URL-safe Base64 token without padding
+     */
     fun generateRandomToken(): String {
         val tokenBytes = ByteArray(TOKEN_LENGTH_BYTES)
         secureRandom.nextBytes(tokenBytes)
