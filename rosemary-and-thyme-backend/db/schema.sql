@@ -113,11 +113,10 @@ CREATE TABLE IF NOT EXISTS public.recipes (
     --Automatic PRIMARY KEY index used by recipe detail, update, and delete queries with `WHERE id = :recipeId`
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     title varchar(60) NOT NULL,
-    description text NOT NULL,
-    side_notes text NOT NULL,
+    description text NOT NULL DEFAULT '',
+    side_notes text NOT NULL DEFAULT '',
     difficulty smallint NOT NULL DEFAULT 1 CHECK (difficulty BETWEEN 1 AND 5),
     portions smallint NOT NULL DEFAULT 1,
-    likes integer NOT NULL DEFAULT 0,
     cook_time varchar(20) NOT NULL DEFAULT '0',
     times_made integer NOT NULL DEFAULT 0,
     created_date timestamp with time zone NOT NULL DEFAULT now(),
@@ -146,17 +145,13 @@ CREATE TABLE IF NOT EXISTS public.recipes (
 );
 --Supports the owner's dashboard query with `WHERE user_id = :userId ORDER BY name ASC, id ASC`, including private recipes
 CREATE INDEX IF NOT EXISTS recipes_user_name_id_idx
-    ON public.recipes(user_id, name ASC, id ASC);
+    ON public.recipes(user_id, title ASC, id ASC);
 --Supports fuzzy name searches with `WHERE name % :term` across public and owner-visible private recipes
 CREATE INDEX IF NOT EXISTS recipes_name_trgm_idx
-    ON public.recipes USING gin (name gin_trgm_ops);
---Supports the public popular-feed query with `WHERE is_private = false ORDER BY likes DESC, id DESC`
-CREATE INDEX IF NOT EXISTS recipes_public_likes_id_idx
-    ON public.recipes(likes DESC, id DESC)
-    WHERE is_private = false;
+    ON public.recipes USING gist (title gist_trgm_ops);
 --Supports the public alphabetical-feed query with `WHERE is_private = false ORDER BY name ASC, id ASC`
 CREATE INDEX IF NOT EXISTS recipes_public_name_id_idx
-    ON public.recipes(name ASC, id ASC)
+    ON public.recipes(title ASC, id ASC)
     WHERE is_private = false;
 
 

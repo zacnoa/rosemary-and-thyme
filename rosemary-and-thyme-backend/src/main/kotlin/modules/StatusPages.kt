@@ -8,6 +8,7 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.request.ContentTransformationException
 import io.ktor.server.request.uri
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
@@ -82,6 +83,14 @@ fun Application.configureStatusPages() {
                 detail = "Something went wrong on our end, Please try again later or contact us at"
             )
         }
+    exception<ContentTransformationException> { call, _ ->
+        call.respondProblem(
+            status = HttpStatusCode.BadRequest,
+            type = "problem/invalid-request-body",
+            title = "Invalid request body",
+            detail = "The request body does not match the expected format"
+        )
+    }
 
     }
 }
