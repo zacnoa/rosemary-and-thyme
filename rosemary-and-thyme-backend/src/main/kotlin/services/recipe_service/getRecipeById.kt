@@ -17,6 +17,8 @@ import java.util.UUID
  * @return the matching recipe
  * @throws ResourceNotFoundException if no recipe exists with the supplied identifier
  */
+
+//TODO, add ownership check
 fun RecipeService.getRecipeById(id: UUID):RecipeDTO=
     
     dsl.selectFrom(RECIPES)

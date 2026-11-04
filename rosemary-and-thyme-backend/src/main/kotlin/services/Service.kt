@@ -1,15 +1,7 @@
 package rosemary_and_thyme.services
 
-import com.password4j.Argon2Function
-import com.password4j.types.Argon2
+import aws.sdk.kotlin.services.s3.S3Client
 import org.jooq.DSLContext
-import org.springframework.security.crypto.password.PasswordEncoder
-import org.springframework.security.crypto.password4j.Argon2Password4jPasswordEncoder
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.HexFormat
-import kotlin.io.encoding.Base64
 
 /**
  * Central access point for application services and their shared [DSLContext].
@@ -19,10 +11,13 @@ import kotlin.io.encoding.Base64
  */
 object Service {
     private var dslContext: DSLContext? = null
+    private var s3Client: S3Client?=null
+    var s3Bucket:String?=null
 
     val recipeService = RecipeService()
     val userService = UserService()
     val authService = AuthService()
+    val s3Service = S3Service()
 
     /**
      * The shared jOOQ context used by service operations.
@@ -38,17 +33,24 @@ object Service {
      * @param dsl context used for database access
      * @throws IllegalStateException if the service layer is already initialized
      */
-    fun initialize(dsl: DSLContext) {
+    fun initializeDatabase(dsl: DSLContext) {
         check(dslContext == null) {
-            "Service has already been initialized"
+            "Database has already been initialized"
         }
         dslContext = dsl
     }
 
-    /** Clears the stored jOOQ context during application shutdown. */
-    fun clear() {
-        dslContext = null
+    val s3:S3Client 
+        get()=checkNotNull(s3Client){"S3 has not been initialized"}
+        
+    fun initializeS3(client: S3Client, bucket:String){
+        check(s3Client==null){
+            "S3 client has already been initialized"
+        }
+        s3Client=client
+        s3Bucket=bucket
     }
+
 }
 
 
@@ -60,4 +62,6 @@ class UserService
 
 /** Namespace for authentication and session service operations. */
 class AuthService
+
+class S3Service
 

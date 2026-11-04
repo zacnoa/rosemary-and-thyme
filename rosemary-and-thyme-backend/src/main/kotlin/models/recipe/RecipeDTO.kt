@@ -56,7 +56,7 @@ data class RecipeContentDTO(
 @Serializable
 data class RecipeImageDTO(
     val id: String,
-    val url: String
+    val objectKey: String
 )
 
 /** Ingredient used by a recipe. */

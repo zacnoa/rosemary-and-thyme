@@ -21,7 +21,6 @@ dependencies {
     
     implementation(ktorLibs.server.core)
     implementation(ktorLibs.server.netty)
-    implementation(libs.logback.classic)
 
     implementation(ktorLibs.server.auth)
     implementation(ktorLibs.server.sessions)
@@ -32,9 +31,10 @@ dependencies {
 
     implementation(libs.spring.security.crypto)
     implementation(libs.password4j)
-
     implementation(libs.jooq)
     implementation(libs.jooq.kotlin)
+    implementation(libs.logback.classic)
+    implementation(libs.aws.s3)
 
     runtimeOnly(libs.postgresql)
     jooqCodegen(libs.postgresql)
