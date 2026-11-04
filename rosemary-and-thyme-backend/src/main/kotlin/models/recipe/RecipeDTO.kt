@@ -1,12 +1,11 @@
 package rosemary_and_thyme.models.recipe
 
 import kotlinx.serialization.Serializable
-import java.time.LocalDateTime
-import javax.print.attribute.standard.Sides
 
 /**
  * Serializable representation of a recipe returned by the API.
- * Item data is stored in maps, while the corresponding identifier lists preserve display order.
+ * Ingredients and instructions are stored in maps, while identifier collections preserve
+ * image membership and display order.
  */
 @Serializable
 data class RecipeDTO(
@@ -22,7 +21,7 @@ data class RecipeDTO(
     val sideNote: String,
     val createdDate:String,
 
-    val images: Map<String, RecipeImageDTO>,
+    val imageIds: Set<String>,
     val ingredients: Map<String, IngredientDTO>,
     val instructions: Map<String, InstructionDTO>,
 
@@ -39,24 +38,12 @@ data class RecipeDTO(
  */
 @Serializable
 data class RecipeContentDTO(
-    val images: Map<String, RecipeImageDTO> = emptyMap(),
+    val imageIds: Set<String> = emptySet(),
     val ingredients: Map<String, IngredientDTO> = emptyMap(),
     val instructions: Map<String, InstructionDTO> = emptyMap(),
     val ingredientsOrder: List<String> = emptyList(),
     val instructionsOrder: List<String> = emptyList(),
     val heroImagesOrder: List<String> = emptyList()
-)
-
-/**
- * Image referenced by a recipe.
- *
- * @property id image identifier used by recipe ordering and instruction references
- * @property url URL of the uploaded image
- */
-@Serializable
-data class RecipeImageDTO(
-    val id: String,
-    val objectKey: String
 )
 
 /** Ingredient used by a recipe. */

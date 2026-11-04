@@ -41,7 +41,7 @@ fun RecipeService.getRecipeById(id: UUID):RecipeDTO=
                 isPrivate=checkNotNull(record.getValue(RECIPES.IS_PRIVATE)),
 
                     
-                images=content.images,
+                imageIds=content.imageIds,
                 ingredients=content.ingredients,
                 instructions=content.instructions,
                 ingredientsOrder=content.ingredientsOrder,

@@ -1,28 +1,29 @@
 package rosemary_and_thyme.services.recipe_service
 
-import rosemary_and_thyme.models.recipe.RecipeDTO
 import rosemary_and_thyme.models.recipe.IngredientDTO
 import rosemary_and_thyme.models.recipe.InstructionDTO
-import rosemary_and_thyme.models.recipe.RecipeImageDTO
+import rosemary_and_thyme.models.requests.PostRecipeRequest
 import rosemary_and_thyme.models.requests.UpdateRecipeRequest
 import rosemary_and_thyme.services.RecipeService
+import java.util.UUID
 
 /**
  * Validates recipe data received by the create workflow.
  *
- * @param recipeDTO recipe data to validate
+ * @param request recipe data to validate
  * @return validation messages, or an empty list when the recipe is valid
  */
-fun RecipeService.validateRecipe(recipeDTO: RecipeDTO): List<String> =
+fun RecipeService.validateRecipe(request: PostRecipeRequest): List<String> =
     validateRecipeData(
-        title = recipeDTO.title,
-        description = recipeDTO.description,
-        difficulty = recipeDTO.difficulty,
-        images = recipeDTO.images,
-        ingredients = recipeDTO.ingredients,
-        instructions = recipeDTO.instructions,
-        ingredientsOrder = recipeDTO.ingredientsOrder,
-        instructionsOrder = recipeDTO.instructionsOrder
+        title = request.title,
+        description = request.description,
+        difficulty = request.difficulty,
+        imageIds = request.imageIds,
+        ingredients = request.ingredients,
+        instructions = request.instructions,
+        ingredientsOrder = request.ingredientsOrder,
+        instructionsOrder = request.instructionsOrder,
+        heroImagesOrder = request.heroImagesOrder
     )
 
 /**
@@ -31,17 +32,21 @@ fun RecipeService.validateRecipe(recipeDTO: RecipeDTO): List<String> =
  * @param request replacement recipe data to validate
  * @return validation messages, or an empty list when the request is valid
  */
-fun RecipeService.validateRecipe(request: UpdateRecipeRequest): List<String> =
-    validateRecipeData(
+fun RecipeService.validateRecipe(request: UpdateRecipeRequest): List<String> {
+    val messages = validateRecipeData(
         title = request.title,
         description = request.description,
         difficulty = request.difficulty,
-        images = request.images,
+        imageIds = request.imageIds,
         ingredients = request.ingredients,
         instructions = request.instructions,
         ingredientsOrder = request.ingredientsOrder,
-        instructionsOrder = request.instructionsOrder
+        instructionsOrder = request.instructionsOrder,
+        heroImagesOrder = request.heroImagesOrder
     )
+
+    return messages
+}
 
 /**
  * Applies validation rules shared by recipe create and update operations.
@@ -49,22 +54,24 @@ fun RecipeService.validateRecipe(request: UpdateRecipeRequest): List<String> =
  * @param title recipe title
  * @param description recipe description
  * @param difficulty difficulty value to validate
- * @param images images associated with the recipe
+ * @param imageIds identifiers of images associated with the recipe
  * @param ingredients ingredients keyed by their identifiers
  * @param instructions instructions keyed by their identifiers
  * @param ingredientsOrder ordered ingredient identifiers
  * @param instructionsOrder ordered instruction identifiers
+ * @param heroImagesOrder ordered identifiers of images displayed as recipe heroes
  * @return all validation messages produced for the supplied data
  */
 private fun validateRecipeData(
     title: String,
     description: String,
     difficulty: Short,
-    images: Map<String, RecipeImageDTO>,
+    imageIds: Set<String>,
     ingredients: Map<String, IngredientDTO>,
     instructions: Map<String, InstructionDTO>,
     ingredientsOrder: List<String>,
-    instructionsOrder: List<String>
+    instructionsOrder: List<String>,
+    heroImagesOrder: List<String>
 ): List<String> {
     val messages = mutableListOf<String>()
 
@@ -74,8 +81,11 @@ private fun validateRecipeData(
     if (title.length > 60) {
         messages.add("title should not be longer than 60 characters")
     }
-    if (images.keys.size > 20) {
+    if (imageIds.size > 20) {
         messages.add("Only 20 images are allowed per recipe")
+    }
+    if (imageIds.any { runCatching { UUID.fromString(it) }.isFailure }) {
+        messages.add("Every image id must be a valid UUID")
     }
     if (ingredients.values.any { it.name.length > 40 }) {
         messages.add("ingredient name should not be longer than 40 characters")
@@ -114,6 +124,19 @@ private fun validateRecipeData(
 
     if (ingredients.any { (id, ingredient) -> id != ingredient.id }) {
         messages.add("Every ingredient map key must match the ingredient id")
+    }
+
+    if (heroImagesOrder.size != heroImagesOrder.toSet().size) {
+        messages.add("heroImagesOrder must not contain duplicate image ids")
+    }
+
+    if (!imageIds.containsAll(heroImagesOrder)) {
+        messages.add("heroImagesOrder may reference only images belonging to the recipe")
+    }
+
+    val instructionImageIds = instructions.values.flatMap { it.images }
+    if (!imageIds.containsAll(instructionImageIds)) {
+        messages.add("Instructions may reference only images belonging to the recipe")
     }
 
     return messages

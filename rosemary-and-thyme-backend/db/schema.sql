@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS public.recipes (
     is_private boolean NOT NULL DEFAULT false,
     content jsonb NOT NULL DEFAULT
         '{
-            "images": {},
+            "imageIds": [],
             "ingredients": {},
             "instructions": {},
             "ingredientsOrder": [],
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS public.recipes (
             "heroImagesOrder": []
         }'::jsonb
         CHECK (jsonb_typeof(content) = 'object')
-        CHECK (jsonb_typeof(content->'images') = 'object')
+        CHECK (jsonb_typeof(content->'imageIds') = 'array')
         CHECK (jsonb_typeof(content->'ingredients') = 'object')
         CHECK (jsonb_typeof(content->'instructions') = 'object')
         CHECK (jsonb_typeof(content->'ingredientsOrder') = 'array')

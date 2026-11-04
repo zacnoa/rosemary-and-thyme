@@ -10,7 +10,7 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
-import rosemary_and_thyme.models.recipe.RecipeDTO
+import rosemary_and_thyme.models.requests.PostRecipeRequest
 import rosemary_and_thyme.models.requests.UpdateRecipeRequest
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.routes.utils.requireUuidPathParameter
@@ -28,9 +28,9 @@ fun Route.recipeManipulationRoutes() {
     authenticate("auth-session") {
 
         post {
-            val recipeDTO = call.receive<RecipeDTO>()
+            val request = call.receive<PostRecipeRequest>()
             val userPrincipal = checkNotNull(call.principal<UserPrincipal>())
-            Service.recipeService.postRecipe(recipeDTO, userPrincipal)
+            Service.recipeService.postRecipe(request, userPrincipal)
             call.respond(status = HttpStatusCode.OK, message = "Recipe was successfully saved")
         }
         // Replaces an existing recipe.

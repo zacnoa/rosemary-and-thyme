@@ -20,6 +20,16 @@ import java.util.UUID
  * @throws BadRecipeFormat if the replacement data fails validation
  * @throws ResourceNotFoundException if the recipe does not exist or is owned by another user
  */
+
+
+// The path parameter identifies the recipe being updated, while the ownership
+// condition ensures that the authenticated user can modify only their own recipes.
+// An authenticated user is authorized to update any recipe they own, so selecting
+// another owned recipe ID is intentional behavior rather than an authorization bypass.
+// Za običan edit endpoint korisnik uvijek može namjerno poslati ID nekog svojeg recepta.
+// Backend ne može znati koji je recept korisnik “mislio” uređivati.
+// Za zaštitu od slučajnog prepisivanja možemo kasnije dodati optimistic locking preko version stupca ili HTTP ETag/If-Match.
+
 fun RecipeService.putRecipe(
     request: UpdateRecipeRequest,
     userPrincipal: UserPrincipal,
@@ -32,7 +42,7 @@ fun RecipeService.putRecipe(
     }
 
     val content = RecipeContentDTO(
-        images = request.images,
+        imageIds = request.imageIds,
         ingredients = request.ingredients,
         instructions = request.instructions,
         ingredientsOrder = request.ingredientsOrder,

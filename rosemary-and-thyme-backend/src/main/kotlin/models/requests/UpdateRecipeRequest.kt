@@ -3,7 +3,6 @@ package rosemary_and_thyme.models.requests
 import kotlinx.serialization.Serializable
 import rosemary_and_thyme.models.recipe.IngredientDTO
 import rosemary_and_thyme.models.recipe.InstructionDTO
-import rosemary_and_thyme.models.recipe.RecipeImageDTO
 
 /**
  * Client-editable data used to replace an existing recipe.
@@ -16,7 +15,7 @@ data class UpdateRecipeRequest(
     val portions: Short,
     val difficulty: Short,
     val sideNote: String,
-    val images: Map<String, RecipeImageDTO>,
+    val imageIds: Set<String>,
     val ingredients: Map<String, IngredientDTO>,
     val instructions: Map<String, InstructionDTO>,
     val ingredientsOrder: List<String>,
