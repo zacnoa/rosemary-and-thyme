@@ -4,15 +4,16 @@ import aws.sdk.kotlin.services.s3.S3Client
 import org.jooq.DSLContext
 
 /**
- * Central access point for application services and their shared [DSLContext].
+ * Central access point for application services and their shared database and object-storage clients.
  *
  * Service operations are organized as extension functions on [RecipeService], [UserService],
- * and [AuthService]. The object must be initialized before any database-backed operation runs.
+ * [AuthService], and [S3Service]. The required clients must be initialized during application startup
+ * before a service operation uses them.
  */
 object Service {
-    private var dslContext: DSLContext? = null
-    private var s3Client: S3Client?=null
-    var s3Bucket:String?=null
+    private var dslContextNullable: DSLContext? = null
+    private var s3ClientNullable: S3Client?=null
+    var s3BucketNullable:String?=null
 
     val recipeService = RecipeService()
     val userService = UserService()
@@ -25,7 +26,7 @@ object Service {
      * @throws IllegalStateException if [Service] has not been initialized
      */
     val dsl: DSLContext
-        get() = checkNotNull(dslContext) { "Service has not been initialized" }
+        get() = checkNotNull(dslContextNullable) { "Service has not been initialized" }
 
     /**
      * Initializes the service layer with the application's jOOQ context.
@@ -34,21 +35,41 @@ object Service {
      * @throws IllegalStateException if the service layer is already initialized
      */
     fun initializeDatabase(dsl: DSLContext) {
-        check(dslContext == null) {
+        check(dslContextNullable == null) {
             "Database has already been initialized"
         }
-        dslContext = dsl
+        dslContextNullable = dsl
     }
 
-    val s3:S3Client 
-        get()=checkNotNull(s3Client){"S3 has not been initialized"}
-        
+    /**
+     * The shared S3-compatible client used for Cloudflare R2 operations.
+     *
+     * @throws IllegalStateException if the client has not been initialized
+     */
+    val s3Client:S3Client 
+        get()=checkNotNull(s3ClientNullable){"S3 has not been initialized"}
+
+    /**
+     * Name of the R2 bucket used for recipe images.
+     *
+     * @throws IllegalStateException if the bucket has not been initialized
+     */
+    val s3Bucket:String
+        get()= checkNotNull(s3BucketNullable){"S3 bucket has not been initialized"}
+
+    /**
+     * Initializes the object-storage client and its recipe image bucket.
+     *
+     * @param client S3-compatible client configured for Cloudflare R2
+     * @param bucket bucket used to store recipe images
+     * @throws IllegalStateException if the S3 client has already been initialized
+     */
     fun initializeS3(client: S3Client, bucket:String){
-        check(s3Client==null){
+        check(s3ClientNullable==null){
             "S3 client has already been initialized"
         }
-        s3Client=client
-        s3Bucket=bucket
+        s3ClientNullable=client
+        s3BucketNullable=bucket
     }
 
 }
@@ -63,5 +84,6 @@ class UserService
 /** Namespace for authentication and session service operations. */
 class AuthService
 
+/** Namespace for Cloudflare R2 object-storage operations. */
 class S3Service
 

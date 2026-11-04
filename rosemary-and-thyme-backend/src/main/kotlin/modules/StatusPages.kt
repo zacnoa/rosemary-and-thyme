@@ -14,6 +14,7 @@ import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import rosemary_and_thyme.models.exceptions.RecipeImageUploadException
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.models.exceptions.UserAlreadyExists
 
@@ -73,6 +74,14 @@ fun Application.configureStatusPages() {
                 type = "problem/user-exists",
                 title = "Username already exists",
                 detail = cause.message ?: "A user with that username already exists"
+            )
+        }
+        exception<RecipeImageUploadException> { call, cause ->
+            call.respondProblem(
+                status = HttpStatusCode.Conflict,
+                type = "problem/recipe-images-incomplete",
+                title = "Recipe images are incomplete",
+                detail = cause.message ?: "The recipe images have not been uploaded correctly"
             )
         }
         exception<IllegalStateException> { call, cause ->

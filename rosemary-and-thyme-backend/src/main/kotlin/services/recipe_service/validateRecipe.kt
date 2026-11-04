@@ -1,7 +1,7 @@
 package rosemary_and_thyme.services.recipe_service
 
-import rosemary_and_thyme.models.recipe.IngredientDTO
-import rosemary_and_thyme.models.recipe.InstructionDTO
+import rosemary_and_thyme.models.responses.IngredientDTO
+import rosemary_and_thyme.models.responses.InstructionDTO
 import rosemary_and_thyme.models.requests.PostRecipeRequest
 import rosemary_and_thyme.models.requests.UpdateRecipeRequest
 import rosemary_and_thyme.services.RecipeService

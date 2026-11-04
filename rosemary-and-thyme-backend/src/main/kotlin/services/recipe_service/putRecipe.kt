@@ -4,11 +4,11 @@ import org.jooq.JSONB
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.BadRecipeFormat
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
-import rosemary_and_thyme.models.recipe.RecipeContentDTO
+import rosemary_and_thyme.models.responses.RecipeContentDTO
 import rosemary_and_thyme.models.requests.UpdateRecipeRequest
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.RecipeService
-import rosemary_and_thyme.services.Service.dsl
+import rosemary_and_thyme.services.Service
 import java.util.UUID
 
 /**
@@ -54,7 +54,7 @@ fun RecipeService.putRecipe(
         serializeRecipeContent(content)
     )
 
-    dsl.update(RECIPES)
+    Service.dsl.update(RECIPES)
         .set(RECIPES.TITLE, request.title)
         .set(RECIPES.DESCRIPTION, request.description)
         .set(RECIPES.SIDE_NOTES, request.sideNote)

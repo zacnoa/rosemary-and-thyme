@@ -5,7 +5,7 @@ import rosemary_and_thyme.models.exceptions.AuthenticationException
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.AuthService
 import rosemary_and_thyme.services.CryptoService
-import rosemary_and_thyme.services.Service.dsl
+import rosemary_and_thyme.services.Service
 
 /**
  * Authenticates a user with an email address and password.
@@ -19,7 +19,7 @@ fun AuthService.loginUser(email: String, password: String): UserPrincipal {
 
     val hashedPassword = CryptoService.hashPassword(password)
 
-    return dsl.selectFrom(USERS)
+    return Service.dsl.selectFrom(USERS)
         .where(USERS.EMAIL.eq(email))
         .and(USERS.PASSWORD.eq(hashedPassword))
         .fetchOne()?.let { record ->

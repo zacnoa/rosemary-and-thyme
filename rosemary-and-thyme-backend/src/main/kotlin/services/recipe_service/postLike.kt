@@ -6,7 +6,7 @@ import rosemary_and_thyme.jooq.public.tables.references.RECIPE_LIKES
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.RecipeService
-import rosemary_and_thyme.services.Service.dsl
+import rosemary_and_thyme.services.Service
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -22,14 +22,14 @@ fun RecipeService.postLike(
     recipeId: UUID,
     userPrincipal: UserPrincipal
 ) {
-    val affectedRows = dsl.insertInto(
+    val affectedRows = Service.dsl.insertInto(
         RECIPE_LIKES,
         RECIPE_LIKES.RECIPE_ID,
         RECIPE_LIKES.USER_ID,
         RECIPE_LIKES.CREATED_AT
     )
         .select(
-            dsl.select(
+            Service.dsl.select(
                 RECIPES.ID,
                 DSL.value(userPrincipal.id),
                 DSL.value(OffsetDateTime.now())

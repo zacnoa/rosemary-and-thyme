@@ -3,7 +3,7 @@ package rosemary_and_thyme.services.recipe_service
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.services.RecipeService
-import rosemary_and_thyme.services.Service.dsl
+import rosemary_and_thyme.services.Service
 import java.util.UUID
 
 /**
@@ -13,7 +13,7 @@ import java.util.UUID
  * @throws ResourceNotFoundException if the recipe does not exist
  */
 fun RecipeService.postMade(recipeId: UUID) {
-    dsl.update(RECIPES)
+    Service.dsl.update(RECIPES)
         .set(RECIPES.TIMES_MADE, RECIPES.TIMES_MADE.plus(1))
         .where(RECIPES.ID.eq(recipeId))
         .execute()

@@ -6,7 +6,7 @@ import rosemary_and_thyme.models.exceptions.AuthenticationException
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.AuthService
 import rosemary_and_thyme.services.CryptoService
-import rosemary_and_thyme.services.Service.dsl
+import rosemary_and_thyme.services.Service
 import java.time.OffsetDateTime
 
 /**
@@ -17,7 +17,7 @@ import java.time.OffsetDateTime
  */
 fun AuthService.authenticateSession(cookie:String) : UserPrincipal?=
     
-    dsl.select(USERS.ID,USERS.USERNAME,USERS.EMAIL)
+    Service.dsl.select(USERS.ID,USERS.USERNAME,USERS.EMAIL)
     .from(SESSIONS)
     .join(USERS)
     .on(USERS.ID.eq(SESSIONS.USER_ID))

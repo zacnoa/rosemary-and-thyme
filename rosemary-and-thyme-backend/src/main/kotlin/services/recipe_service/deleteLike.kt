@@ -4,7 +4,7 @@ import rosemary_and_thyme.jooq.public.tables.references.RECIPE_LIKES
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.RecipeService
-import rosemary_and_thyme.services.Service.dsl
+import rosemary_and_thyme.services.Service
 import java.util.UUID
 
 /**
@@ -16,7 +16,7 @@ import java.util.UUID
  */
 fun RecipeService.deleteLike(recipeId: UUID, userPrincipal: UserPrincipal) {
 
-    dsl.deleteFrom(RECIPE_LIKES)
+    Service.dsl.deleteFrom(RECIPE_LIKES)
         .where(RECIPE_LIKES.RECIPE_ID.eq(recipeId))
         .and(RECIPE_LIKES.USER_ID.eq(userPrincipal.id))
         .execute()

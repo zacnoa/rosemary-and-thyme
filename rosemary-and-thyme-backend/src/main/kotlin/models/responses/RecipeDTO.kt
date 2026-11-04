@@ -1,4 +1,4 @@
-package rosemary_and_thyme.models.recipe
+package rosemary_and_thyme.models.responses
 
 import kotlinx.serialization.Serializable
 
@@ -6,6 +6,8 @@ import kotlinx.serialization.Serializable
  * Serializable representation of a recipe returned by the API.
  * Ingredients and instructions are stored in maps, while identifier collections preserve
  * image membership and display order.
+ *
+ * @property imageIds identifiers used to derive media URLs without exposing storage object keys
  */
 @Serializable
 data class RecipeDTO(
@@ -35,6 +37,8 @@ data class RecipeDTO(
 /**
  * Structured value stored in the `public.recipes.content` JSON column.
  * It is combined with the relational recipe columns when constructing [RecipeDTO].
+ *
+ * @property imageIds identifiers of every image belonging to the recipe
  */
 @Serializable
 data class RecipeContentDTO(

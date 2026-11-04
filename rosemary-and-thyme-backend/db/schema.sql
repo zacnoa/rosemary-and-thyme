@@ -112,6 +112,7 @@ CREATE SCHEMA IF NOT EXISTS public;
 CREATE TABLE IF NOT EXISTS public.recipes (
     --Automatic PRIMARY KEY index used by recipe detail, update, and delete queries with `WHERE id = :recipeId`
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    is_draft boolean NOT NULL DEFAULT true,
     title varchar(60) NOT NULL,
     description text NOT NULL DEFAULT '',
     side_notes text NOT NULL DEFAULT '',

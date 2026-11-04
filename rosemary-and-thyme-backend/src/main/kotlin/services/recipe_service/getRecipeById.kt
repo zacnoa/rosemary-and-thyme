@@ -3,10 +3,10 @@ package rosemary_and_thyme.services.recipe_service
 import kotlinx.serialization.json.Json
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
-import rosemary_and_thyme.models.recipe.RecipeContentDTO
-import rosemary_and_thyme.models.recipe.RecipeDTO
+import rosemary_and_thyme.models.responses.RecipeContentDTO
+import rosemary_and_thyme.models.responses.RecipeDTO
 import rosemary_and_thyme.services.RecipeService
-import rosemary_and_thyme.services.Service.dsl
+import rosemary_and_thyme.services.Service
 import java.util.UUID
 
 
@@ -21,7 +21,7 @@ import java.util.UUID
 //TODO, add ownership check
 fun RecipeService.getRecipeById(id: UUID):RecipeDTO=
     
-    dsl.selectFrom(RECIPES)
+    Service.dsl.selectFrom(RECIPES)
     .where(RECIPES.ID.eq(id))
     .fetchOne()?.let{record->
         val content=Json.decodeFromString<RecipeContentDTO>(checkNotNull(record.getValue(RECIPES.CONTENT)).data())

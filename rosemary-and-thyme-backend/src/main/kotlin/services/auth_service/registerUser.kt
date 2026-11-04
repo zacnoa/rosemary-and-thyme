@@ -4,7 +4,7 @@ import rosemary_and_thyme.jooq.app_auth.tables.references.USERS
 import rosemary_and_thyme.models.exceptions.UserAlreadyExists
 import rosemary_and_thyme.services.AuthService
 import rosemary_and_thyme.services.CryptoService
-import rosemary_and_thyme.services.Service.dsl
+import rosemary_and_thyme.services.Service
 
 
 /**
@@ -21,7 +21,7 @@ fun AuthService.registerUser(username:String,password:String,email:String){
     val normalizedUsername=username.trim().lowercase()
     val hashedPassword= CryptoService.hashPassword(password)
     
-    dsl.insertInto(USERS)
+    Service.dsl.insertInto(USERS)
     .set(USERS.USERNAME,username)
     .set(USERS.USERNAME_NORMALIZED,normalizedUsername)
     .set(USERS.EMAIL,email)

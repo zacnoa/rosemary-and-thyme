@@ -1,12 +1,14 @@
 package rosemary_and_thyme.models.requests
 
 import kotlinx.serialization.Serializable
-import rosemary_and_thyme.models.recipe.IngredientDTO
-import rosemary_and_thyme.models.recipe.InstructionDTO
+import rosemary_and_thyme.models.responses.IngredientDTO
+import rosemary_and_thyme.models.responses.InstructionDTO
 
 /**
  * Client-editable data used to replace an existing recipe.
  * Resource identity, ownership, creation time, and counters are controlled by the server.
+ *
+ * @property imageIds complete set of image identifiers retained by the replacement recipe
  */
 @Serializable
 data class UpdateRecipeRequest(

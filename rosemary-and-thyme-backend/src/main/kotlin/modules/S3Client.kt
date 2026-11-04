@@ -6,8 +6,12 @@ import aws.smithy.kotlin.runtime.auth.awscredentials.Credentials
 import aws.smithy.kotlin.runtime.net.url.Url
 import io.ktor.server.application.Application
 
-
-
+/**
+ * Creates an S3-compatible client configured for the application's Cloudflare R2 account.
+ * Credentials and the account identifier are read from the `s3Client` application configuration.
+ *
+ * @return client used to sign and execute R2 object operations
+ */
 fun Application.configureS3Client(): S3Client {
     
     val clientConfig=environment.config.config("s3Client")

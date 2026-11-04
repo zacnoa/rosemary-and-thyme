@@ -1,27 +1,16 @@
 package rosemary_and_thyme.routes.recipe
 
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.auth.authenticate
-import io.ktor.server.auth.principal
-import io.ktor.server.request.receive
-import io.ktor.server.response.respond
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.delete
-import io.ktor.server.routing.patch
-import io.ktor.server.routing.post
-import io.ktor.server.routing.put
+import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import rosemary_and_thyme.models.requests.PostRecipeRequest
 import rosemary_and_thyme.models.requests.UpdateRecipeRequest
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.routes.utils.requireUuidPathParameter
 import rosemary_and_thyme.services.Service
-import rosemary_and_thyme.services.recipe_service.deleteLike
-import rosemary_and_thyme.services.recipe_service.deleteRecipe
-import rosemary_and_thyme.services.recipe_service.postMade
-import rosemary_and_thyme.services.recipe_service.postLike
-import rosemary_and_thyme.services.recipe_service.postRecipe
-import rosemary_and_thyme.services.recipe_service.putRecipe
-import rosemary_and_thyme.services.recipe_service.toggleRecipePrivate
+import rosemary_and_thyme.services.recipe_service.*
 
 /** Registers routes that create, update, and delete recipe data. */
 fun Route.recipeManipulationRoutes() {
@@ -30,8 +19,23 @@ fun Route.recipeManipulationRoutes() {
         post {
             val request = call.receive<PostRecipeRequest>()
             val userPrincipal = checkNotNull(call.principal<UserPrincipal>())
-            Service.recipeService.postRecipe(request, userPrincipal)
-            call.respond(status = HttpStatusCode.OK, message = "Recipe was successfully saved")
+            val response = Service.recipeService.postRecipe(request, userPrincipal)
+
+            call.respond(
+                status = HttpStatusCode.Created,
+                message = response
+            )
+        }
+        post("/{id}/complete") {
+            val recipeId = call.requireUuidPathParameter("id")
+            val userPrincipal = checkNotNull(call.principal<UserPrincipal>())
+
+            Service.recipeService.completeRecipeDraft(
+                recipeId = recipeId,
+                userPrincipal = userPrincipal
+            )
+
+            call.respond(HttpStatusCode.NoContent)
         }
         // Replaces an existing recipe.
         put("/{id}") {

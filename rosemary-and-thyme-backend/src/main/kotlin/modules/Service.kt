@@ -5,7 +5,8 @@ import rosemary_and_thyme.services.Service
 
 
 /**
- * Initializes [Service] with the application database context.
+ * Initializes [Service] with the application database context, R2 client, and recipe image bucket.
+ * Configuration is completed before routing can execute service operations.
  */
 fun Application.configureService() {
 

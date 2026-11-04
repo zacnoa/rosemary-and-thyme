@@ -2,7 +2,7 @@ package rosemary_and_thyme.services.recipe_service
 
 import rosemary_and_thyme.jooq.public.tables.references.RECIPE_LIKES
 import rosemary_and_thyme.services.RecipeService
-import rosemary_and_thyme.services.Service.dsl
+import rosemary_and_thyme.services.Service
 import java.util.UUID
 
 /**
@@ -12,7 +12,7 @@ import java.util.UUID
  * @return the total number of likes
  */
 fun RecipeService.getRecipeLikeCount(recipeId: UUID): Int =
-    dsl.selectCount()
+    Service.dsl.selectCount()
         .from(RECIPE_LIKES)
         .where(RECIPE_LIKES.RECIPE_ID.eq(recipeId))
         .fetchSingle()
