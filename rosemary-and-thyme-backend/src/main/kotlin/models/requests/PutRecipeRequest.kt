@@ -11,7 +11,7 @@ import rosemary_and_thyme.models.responses.InstructionDTO
  * @property imageIds complete set of image identifiers retained by the replacement recipe
  */
 @Serializable
-data class UpdateRecipeRequest(
+data class PutRecipeRequest(
     val title: String,
     val description: String,
     val portions: Short,

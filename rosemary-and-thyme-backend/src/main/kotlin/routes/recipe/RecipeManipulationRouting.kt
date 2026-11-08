@@ -6,7 +6,8 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import rosemary_and_thyme.models.requests.PostRecipeRequest
-import rosemary_and_thyme.models.requests.UpdateRecipeRequest
+import rosemary_and_thyme.models.requests.PresignRecipeImagesRequest
+import rosemary_and_thyme.models.requests.PutRecipeRequest
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.routes.utils.requireUuidPathParameter
 import rosemary_and_thyme.services.Service
@@ -26,6 +27,23 @@ fun Route.recipeManipulationRoutes() {
                 message = response
             )
         }
+        post("/{id}/images/presign") {
+            val recipeId = call.requireUuidPathParameter("id")
+            val userPrincipal = checkNotNull(call.principal<UserPrincipal>())
+            val request = call.receive<PresignRecipeImagesRequest>()
+
+            val uploads = Service.recipeService.uploadImages(
+                recipeId = recipeId,
+                userPrincipal = userPrincipal,
+                imageIds = request.imageIds
+            )
+
+            call.respond(
+                status = HttpStatusCode.OK,
+                message = uploads
+            )
+        }
+
         post("/{id}/complete") {
             val recipeId = call.requireUuidPathParameter("id")
             val userPrincipal = checkNotNull(call.principal<UserPrincipal>())
@@ -39,7 +57,7 @@ fun Route.recipeManipulationRoutes() {
         }
         // Replaces an existing recipe.
         put("/{id}") {
-            val request = call.receive<UpdateRecipeRequest>()
+            val request = call.receive<PutRecipeRequest>()
 
             val id = call.requireUuidPathParameter("id")
 

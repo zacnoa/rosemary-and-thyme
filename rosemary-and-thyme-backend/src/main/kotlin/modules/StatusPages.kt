@@ -14,6 +14,7 @@ import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import rosemary_and_thyme.models.exceptions.BadRecipeFormat
 import rosemary_and_thyme.models.exceptions.RecipeImageUploadException
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.models.exceptions.UserAlreadyExists
@@ -57,6 +58,14 @@ fun Application.configureStatusPages() {
                 type = "problem/bad-request",
                 title = "Bad Request",
                 detail = cause.message ?: "Bad Request"
+            )
+        }
+        exception<BadRecipeFormat> { call, cause ->
+            call.respondProblem(
+                status = HttpStatusCode.BadRequest,
+                type = "problem/invalid-recipe",
+                title = "Invalid recipe",
+                detail = cause.message ?: "The recipe does not match the expected format"
             )
         }
         exception<ResourceNotFoundException> { call, cause ->

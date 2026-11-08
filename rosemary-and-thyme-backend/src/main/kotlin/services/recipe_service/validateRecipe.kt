@@ -3,7 +3,7 @@ package rosemary_and_thyme.services.recipe_service
 import rosemary_and_thyme.models.responses.IngredientDTO
 import rosemary_and_thyme.models.responses.InstructionDTO
 import rosemary_and_thyme.models.requests.PostRecipeRequest
-import rosemary_and_thyme.models.requests.UpdateRecipeRequest
+import rosemary_and_thyme.models.requests.PutRecipeRequest
 import rosemary_and_thyme.services.RecipeService
 import java.util.UUID
 
@@ -32,7 +32,7 @@ fun RecipeService.validateRecipe(request: PostRecipeRequest): List<String> =
  * @param request replacement recipe data to validate
  * @return validation messages, or an empty list when the request is valid
  */
-fun RecipeService.validateRecipe(request: UpdateRecipeRequest): List<String> {
+fun RecipeService.validateRecipe(request: PutRecipeRequest): List<String> {
     val messages = validateRecipeData(
         title = request.title,
         description = request.description,
@@ -74,6 +74,7 @@ private fun validateRecipeData(
     heroImagesOrder: List<String>
 ): List<String> {
     val messages = mutableListOf<String>()
+    val instructionImageIds = instructions.values.flatMap { instruction -> instruction.images }
 
     if (title.isEmpty()) {
         messages.add("Title should not be empty")
@@ -84,8 +85,29 @@ private fun validateRecipeData(
     if (imageIds.size > 20) {
         messages.add("Only 20 images are allowed per recipe")
     }
-    if (imageIds.any { runCatching { UUID.fromString(it) }.isFailure }) {
+    val allImageIds = buildSet {
+        addAll(imageIds)
+        addAll(heroImagesOrder)
+        addAll(instructionImageIds)
+    }
+    if (allImageIds.containsInvalidUuid()) {
         messages.add("Every image id must be a valid UUID")
+    }
+    val allIngredientIds = buildSet {
+        addAll(ingredients.keys)
+        ingredients.values.mapTo(this) { ingredient -> ingredient.id }
+        addAll(ingredientsOrder)
+    }
+    if (allIngredientIds.containsInvalidUuid()) {
+        messages.add("Every ingredient id must be a valid UUID")
+    }
+    val allInstructionIds = buildSet {
+        addAll(instructions.keys)
+        instructions.values.mapTo(this) { instruction -> instruction.id }
+        addAll(instructionsOrder)
+    }
+    if (allInstructionIds.containsInvalidUuid()) {
+        messages.add("Every instruction id must be a valid UUID")
     }
     if (ingredients.values.any { it.name.length > 40 }) {
         messages.add("ingredient name should not be longer than 40 characters")
@@ -134,10 +156,12 @@ private fun validateRecipeData(
         messages.add("heroImagesOrder may reference only images belonging to the recipe")
     }
 
-    val instructionImageIds = instructions.values.flatMap { it.images }
     if (!imageIds.containsAll(instructionImageIds)) {
         messages.add("Instructions may reference only images belonging to the recipe")
     }
 
     return messages
 }
+
+private fun Iterable<String>.containsInvalidUuid(): Boolean =
+    any { id -> runCatching { UUID.fromString(id) }.isFailure }

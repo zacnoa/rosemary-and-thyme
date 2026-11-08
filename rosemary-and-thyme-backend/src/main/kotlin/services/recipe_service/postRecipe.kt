@@ -5,28 +5,23 @@ import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.BadRecipeFormat
 import rosemary_and_thyme.models.responses.RecipeContentDTO
 import rosemary_and_thyme.models.requests.PostRecipeRequest
-import rosemary_and_thyme.models.responses.ImageUploadResponse
 import rosemary_and_thyme.models.responses.PostRecipeResponse
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.RecipeService
 import rosemary_and_thyme.services.Service
-import rosemary_and_thyme.services.s3_service.PresignedOperation
-import rosemary_and_thyme.services.s3_service.getPresignedUrl
-import rosemary_and_thyme.services.s3_service.recipeImageKey
 import java.time.OffsetDateTime
-import java.util.UUID
 
 /**
- * Validates and stores a new draft recipe, then prepares direct R2 uploads for its images.
+ * Validates and stores a new draft recipe with its complete intended content.
  * Ownership is derived from the authenticated principal, and the database generates the recipe ID.
  *
  * @param request recipe data supplied by the client
  * @param userPrincipal authenticated owner of the recipe
- * @return generated recipe identifier and a presigned PUT URL for every declared image
+ * @return generated identifier of the stored draft
  * @throws BadRecipeFormat if the recipe fails validation
  * @throws IllegalStateException if a required shared service has not been initialized
  */
-suspend fun RecipeService.postRecipe(
+fun RecipeService.postRecipe(
     request: PostRecipeRequest,
     userPrincipal: UserPrincipal,
 ): PostRecipeResponse {
@@ -67,17 +62,8 @@ suspend fun RecipeService.postRecipe(
     ) {
         "The database did not return an id for the inserted recipe"
     }
-    val presignedUrls:List<ImageUploadResponse> = request.imageIds.map { id ->
-        val objectKey = Service.s3Service.recipeImageKey(userId=userPrincipal.id.toString(),recipeId=recipeId.toString(),imageId=id)
-        ImageUploadResponse(
-        id,    
-        Service.s3Service.getPresignedUrl(PresignedOperation.PUT, objectKey)
-        )
-    }
     
-    return PostRecipeResponse(recipeId = recipeId.toString(), uploads = presignedUrls)
-
-
+    return PostRecipeResponse(recipeId = recipeId.toString())
 
 }
 
