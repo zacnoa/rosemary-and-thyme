@@ -10,8 +10,8 @@ import rosemary_and_thyme.services.RecipeService
 import rosemary_and_thyme.services.Service
 import rosemary_and_thyme.services.s3_service.PresignedOperation
 import rosemary_and_thyme.services.s3_service.getPresignedUrl
-import rosemary_and_thyme.services.s3_service.recipeImageKey
-import rosemary_and_thyme.services.s3_service.recipeImagePrefix
+import rosemary_and_thyme.services.s3_service.recipeImageObjectKey
+import rosemary_and_thyme.services.s3_service.recipeImageObjectKeyPrefix
 import java.util.UUID
 
 private const val MAX_RECIPE_IMAGES = 20
@@ -61,7 +61,7 @@ suspend fun RecipeService.uploadImages(
 
     if (imageIds.isEmpty()) return emptySet()
 
-    val imagePrefix = Service.s3Service.recipeImagePrefix(
+    val imagePrefix = Service.s3Service.recipeImageObjectKeyPrefix(
         userId = userPrincipal.id.toString(),
         recipeId = recipeId.toString()
     )
@@ -75,7 +75,7 @@ suspend fun RecipeService.uploadImages(
         .toSet()
 
     val missingImageIds = imageIds.filterTo(mutableSetOf()) { imageId ->
-        Service.s3Service.recipeImageKey(
+        Service.s3Service.recipeImageObjectKey(
             userId = userPrincipal.id.toString(),
             recipeId = recipeId.toString(),
             imageId = imageId
@@ -83,7 +83,7 @@ suspend fun RecipeService.uploadImages(
     }
 
     return missingImageIds.mapTo(mutableSetOf()) { imageId ->
-        val objectKey = Service.s3Service.recipeImageKey(
+        val objectKey = Service.s3Service.recipeImageObjectKey(
             userId = userPrincipal.id.toString(),
             recipeId = recipeId.toString(),
             imageId = imageId

@@ -35,6 +35,7 @@ dependencies {
     implementation(libs.jooq.kotlin)
     implementation(libs.logback.classic)
     implementation(libs.aws.s3)
+    implementation(libs.java.jwt)
 
     runtimeOnly(libs.postgresql)
     jooqCodegen(libs.postgresql)

@@ -9,7 +9,7 @@ import rosemary_and_thyme.services.S3Service
  * @param recipeId recipe containing the images
  * @return prefix namespaced by user and recipe
  */
-fun S3Service.recipeImagePrefix(
+fun S3Service.recipeImageObjectKeyPrefix(
     userId: String,
     recipeId: String
 ): String =
@@ -24,9 +24,9 @@ fun S3Service.recipeImagePrefix(
  * @param imageId client-generated image identifier
  * @return object key namespaced by user, recipe, and image
  */
-fun S3Service.recipeImageKey(
+fun S3Service.recipeImageObjectKey(
     userId: String,
     recipeId: String,
     imageId: String
 ): String =
-    "${recipeImagePrefix(userId, recipeId)}$imageId"
+    "${recipeImageObjectKeyPrefix(userId, recipeId)}$imageId"

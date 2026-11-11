@@ -28,14 +28,14 @@ suspend fun S3Service.verifyUploadedRecipeImages(
     if (imageIds.isEmpty() && allowAdditionalObjects) return
 
     val expectedKeys = imageIds.mapTo(mutableSetOf()) { imageId ->
-        Service.s3Service.recipeImageKey(
+        Service.s3Service.recipeImageObjectKey(
             userId = userId.toString(),
             recipeId = recipeId.toString(),
             imageId = imageId
         )
     }
 
-    val imagePrefix = Service.s3Service.recipeImagePrefix(
+    val imagePrefix = Service.s3Service.recipeImageObjectKeyPrefix(
         userId = userId.toString(),
         recipeId = recipeId.toString()
     )

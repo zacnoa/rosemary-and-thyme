@@ -11,7 +11,7 @@ import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.RecipeService
 import rosemary_and_thyme.services.Service
 import rosemary_and_thyme.services.s3_service.deleteImages
-import rosemary_and_thyme.services.s3_service.recipeImageKey
+import rosemary_and_thyme.services.s3_service.recipeImageObjectKey
 import rosemary_and_thyme.services.s3_service.verifyUploadedRecipeImages
 import java.util.UUID
 
@@ -59,7 +59,7 @@ suspend fun RecipeService.putRecipe(
     val previousContent = deserializeRecipeContent(previousContentJson.toString())
     val removedImageObjectKeys = (previousContent.imageIds - request.imageIds)
         .mapTo(mutableSetOf()) { imageId ->
-            Service.s3Service.recipeImageKey(
+            Service.s3Service.recipeImageObjectKey(
                 userId = userPrincipal.id.toString(),
                 recipeId = recipeId.toString(),
                 imageId = imageId
