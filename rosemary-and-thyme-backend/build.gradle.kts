@@ -25,6 +25,7 @@ dependencies {
     implementation(ktorLibs.server.auth)
     implementation(ktorLibs.server.sessions)
     implementation(ktorLibs.server.statusPages)
+    implementation(ktorLibs.server.auth.oidc)
 
     implementation(ktorLibs.server.contentNegotiation)
     implementation(ktorLibs.serialization.kotlinx.json)
@@ -36,6 +37,7 @@ dependencies {
     implementation(libs.logback.classic)
     implementation(libs.aws.s3)
     implementation(libs.java.jwt)
+    implementation(libs.resend)
 
     runtimeOnly(libs.postgresql)
     jooqCodegen(libs.postgresql)

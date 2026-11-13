@@ -12,10 +12,19 @@ import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.Service
 import rosemary_and_thyme.services.user_service.cancelDelete
 import rosemary_and_thyme.services.user_service.requestDelete
+import rosemary_and_thyme.services.auth_service.requestPasswordReset
+import rosemary_and_thyme.services.email_service.sendPasswordResetEmail
 
 /** Registers authenticated account-management routes under `/user`. */
 fun Route.userRoutes() {
     route("/user") {
+        // Requests a reset for the authenticated account; the client cannot override the email.
+        post("/password-reset/request") {
+            val principal = checkNotNull(call.principal<UserPrincipal>())
+            val delivery = Service.authService.requestPasswordReset(principal.email)
+            Service.emailService.sendPasswordResetEmail(delivery)
+            call.respond(HttpStatusCode.OK)
+        }
         // Returns public account data from the authenticated principal.
         get("/aboutme") {
             val userDTO = checkNotNull(call.principal<UserPrincipal>()?.toDTO())

@@ -12,11 +12,13 @@ CREATE TABLE IF NOT EXISTS app_auth.users(
     --Here we add a unique constraint on a normalized(lowercase+trim) username for use when searching for a specific user
     --to make it easier to distinguish between users
     username_normalized varchar(60) UNIQUE NOT NULL,
-    --Automatic UNIQUE index used by registration and login queries with `WHERE email = :email`
-    email varchar(255) UNIQUE,
+    email varchar(255),
     email_verified boolean NOT NULL DEFAULT false,
     deletion_requested_at timestamp with time zone 
 );
+--Enforces case-insensitive email uniqueness and supports lookups with `WHERE lower(email) = :email`
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_normalized_key
+    ON app_auth.users (lower(email));
 --Supports account cleanup queries with `WHERE deletion_requested_at < :cutoff`; rows without a deletion request are excluded
 CREATE INDEX IF NOT EXISTS users_deletion_requested_at_idx
     ON app_auth.users(deletion_requested_at)

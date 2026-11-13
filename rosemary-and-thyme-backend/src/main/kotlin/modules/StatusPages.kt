@@ -1,5 +1,7 @@
 package rosemary_and_thyme.modules
 
+import com.resend.core.exception.ResendException
+
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -14,6 +16,8 @@ import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import rosemary_and_thyme.models.exceptions.AuthenticationException
+import rosemary_and_thyme.models.exceptions.EmailNotVerified
 import rosemary_and_thyme.models.exceptions.BadRecipeFormat
 import rosemary_and_thyme.models.exceptions.RecipeImageUploadException
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
@@ -52,6 +56,30 @@ suspend fun ApplicationCall.respondProblem(status: HttpStatusCode, type: String,
  */
 fun Application.configureStatusPages() {
     install(StatusPages) {
+        exception<EmailNotVerified> { call, cause ->
+            call.respondProblem(
+                status = HttpStatusCode.Forbidden,
+                type = "problem/email-not-verified",
+                title = "Email not verified",
+                detail = cause.message ?: "Please verify your email address before logging in"
+            )
+        }
+        exception<ResendException> { call, _ ->
+            call.respondProblem(
+                status = HttpStatusCode.BadGateway,
+                type = "problem/email-delivery",
+                title = "Email delivery failed",
+                detail = "The email could not be sent. Please request a new link."
+            )
+        }
+        exception<AuthenticationException> { call, cause ->
+            call.respondProblem(
+                status = HttpStatusCode.Unauthorized,
+                type = "problem/authentication",
+                title = "Authentication failed",
+                detail = cause.message ?: "Authentication failed"
+            )
+        }
         exception<BadRequestException> { call, cause ->
             call.respondProblem(
                 status = HttpStatusCode.BadRequest,

@@ -5,6 +5,13 @@ ktor:
     modules:
       - rosemary_and_thyme.modules.ApplicationModulesKt.modules
 
+frontend:
+  url: "${FRONTEND_URL}"
+
+resend:
+  apiKey: "${RESEND_API_KEY}"
+  from: "${RESEND_FROM}"
+
 database:
   url: "${DB_URL:jdbc:postgresql://localhost:5432/rosemary_and_thyme}"
   user: "${DB_USER:user}"
@@ -18,3 +25,7 @@ s3Client:
 jwt:
   publicKey: "${PUBLIC_KEY}"
   privateKey: "${PRIVATE_KEY}"
+
+google:
+  clientId: "${CLIENT_ID}"
+  clientSecret: "${CLIENT_SECRET}"

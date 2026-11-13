@@ -1,6 +1,6 @@
 package rosemary_and_thyme.routes.utils
 
-import io.ktor.server.application.ApplicationCall
+import io.ktor.server.routing.RoutingCall
 import io.ktor.server.plugins.BadRequestException
 import java.util.UUID
 
@@ -11,7 +11,7 @@ import java.util.UUID
  * @return the parsed UUID
  * @throws BadRequestException if the parameter is missing or is not a valid UUID
  */
-fun ApplicationCall.requireUuidPathParameter(name: String): UUID {
+fun RoutingCall.requireUuidPathParameter(name: String): UUID {
     val value = pathParameters[name]
         ?: throw BadRequestException("The '$name' path parameter is required")
 

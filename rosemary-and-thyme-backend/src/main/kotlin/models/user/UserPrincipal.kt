@@ -1,5 +1,6 @@
 package rosemary_and_thyme.models.user
 
+import rosemary_and_thyme.jooq.app_auth.tables.records.UsersRecord
 import java.util.UUID
 
 /**
@@ -20,3 +21,17 @@ data class UserPrincipal(val id: UUID, val username: String, val email: String) 
 
 
 }
+
+/**
+ * Converts a database user record into an authenticated application principal.
+ * Required user fields are checked at the persistence boundary so callers receive a complete principal.
+ *
+ * @return authenticated principal represented by this record
+ * @throws IllegalStateException if a required user field is missing
+ */
+fun UsersRecord.toUserPrincipal(): UserPrincipal =
+    UserPrincipal(
+        id = checkNotNull(id) { "User record is missing an id" },
+        username = checkNotNull(username) { "User record is missing a username" },
+        email = checkNotNull(email) { "User record is missing an email" }
+    )

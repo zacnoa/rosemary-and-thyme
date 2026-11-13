@@ -18,27 +18,27 @@ import java.util.UUID
  * @throws ResourceNotFoundException if no recipe exists with the supplied identifier
  */
 
-TODO(Add ownership check)
+//TODO(Add ownership check)
 fun RecipeService.getRecipeById(id: UUID):RecipeDTO=
     
     Service.dsl.selectFrom(RECIPES)
     .where(RECIPES.ID.eq(id))
     .fetchOne()?.let{record->
-        val content=Json.decodeFromString<RecipeContentDTO>(checkNotNull(record.getValue(RECIPES.CONTENT)).data())
+        val content=Json.decodeFromString<RecipeContentDTO>(checkNotNull(record.get(RECIPES.CONTENT)).data())
 
         RecipeDTO(
-                id=record.getValue(RECIPES.ID).toString(),
-                userId=record.getValue(RECIPES.USER_ID).toString(),
-                userName=checkNotNull(record.getValue(RECIPES.USER_NAME)),
-                title=checkNotNull(record.getValue(RECIPES.TITLE)),
-                description=checkNotNull(record.getValue(RECIPES.DESCRIPTION)),
+                id=record.get(RECIPES.ID).toString(),
+                userId=record.get(RECIPES.USER_ID).toString(),
+                userName=checkNotNull(record.get(RECIPES.USER_NAME)),
+                title=checkNotNull(record.get(RECIPES.TITLE)),
+                description=checkNotNull(record.get(RECIPES.DESCRIPTION)),
                 likes=getRecipeLikeCount(id),
-                timesMade = checkNotNull(record.getValue(RECIPES.TIMES_MADE)),
-                portions=checkNotNull(record.getValue(RECIPES.PORTIONS)),
-                difficulty = checkNotNull(record.getValue(RECIPES.DIFFICULTY)),
-                sideNote=checkNotNull(record.getValue(RECIPES.SIDE_NOTES)),
-                createdDate=record.getValue(RECIPES.CREATED_DATE).toString(),
-                isPrivate=checkNotNull(record.getValue(RECIPES.IS_PRIVATE)),
+                timesMade = checkNotNull(record.get(RECIPES.TIMES_MADE)),
+                portions=checkNotNull(record.get(RECIPES.PORTIONS)),
+                difficulty = checkNotNull(record.get(RECIPES.DIFFICULTY)),
+                sideNote=checkNotNull(record.get(RECIPES.SIDE_NOTES)),
+                createdDate=record.get(RECIPES.CREATED_DATE).toString(),
+                isPrivate=checkNotNull(record.get(RECIPES.IS_PRIVATE)),
 
                     
                 imageIds=content.imageIds,

@@ -5,7 +5,9 @@ import rosemary_and_thyme.services.AuthService
 import rosemary_and_thyme.services.Service
 import java.util.UUID
 
-fun AuthService.logout(userId: UUID){
+
+//TODO() Add Only delete current session
+fun AuthService.logoutUser(userId: UUID){
     
     Service.dsl.deleteFrom(SESSIONS)
     .where(SESSIONS.USER_ID.eq(userId))

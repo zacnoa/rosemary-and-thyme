@@ -58,7 +58,7 @@ fun RecipeService.postRecipe(
             .set(RECIPES.CONTENT, contentJson)
             .returning(RECIPES.ID)
             .fetchSingle()
-            .getValue(RECIPES.ID)
+            .get(RECIPES.ID)
     ) {
         "The database did not return an id for the inserted recipe"
     }

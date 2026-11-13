@@ -9,18 +9,26 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import rosemary_and_thyme.models.requests.RegisterRequest
-import rosemary_and_thyme.routes.user.userRoutes
 import rosemary_and_thyme.services.Service
 import rosemary_and_thyme.services.auth_service.registerUser
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondRedirect
 import io.ktor.server.sessions.sessions
 import io.ktor.server.sessions.set
-import rosemary_and_thyme.models.auth.UserSession
 import rosemary_and_thyme.models.requests.LoginRequest
+import rosemary_and_thyme.models.requests.PasswordResetRequest
+import rosemary_and_thyme.models.requests.ConfirmPasswordResetRequest
+import rosemary_and_thyme.models.requests.EmailVerificationRequest
+import rosemary_and_thyme.models.requests.ConfirmEmailVerificationRequest
+import rosemary_and_thyme.services.auth_service.requestEmailVerification
+import rosemary_and_thyme.services.auth_service.confirmEmailVerification
+import rosemary_and_thyme.services.auth_service.requestPasswordReset
+import rosemary_and_thyme.services.auth_service.confirmPasswordReset
 import rosemary_and_thyme.models.user.UserPrincipal
-import rosemary_and_thyme.services.auth_service.createSession
 import rosemary_and_thyme.services.auth_service.loginUser
-import rosemary_and_thyme.services.auth_service.logout
+import rosemary_and_thyme.services.auth_service.logoutUser
+import rosemary_and_thyme.services.email_service.sendVerificationEmail
+import rosemary_and_thyme.services.email_service.sendPasswordResetEmail
 
 /** Registers public authentication and credential-management routes under `/auth`. */
 fun Route.authRoutes() {
@@ -28,40 +36,61 @@ fun Route.authRoutes() {
         // Registers a user from a RegisterRequest body.
         post("/register") {
             val request = call.receive<RegisterRequest>()
-            Service.authService.registerUser(
+            val delivery = Service.authService.registerUser(
                 username = request.username,
                 password = request.password,
                 email = request.email
             )
+            Service.emailService.sendVerificationEmail(delivery)
             call.respond(status = HttpStatusCode.OK, "You have succesfully signed up")
         }
         // Verifies a user's email address.
-        post("/verify-email") {}
+        post("/verify-email") {
+            val request = call.receive<ConfirmEmailVerificationRequest>()
+            val session = Service.authService.confirmEmailVerification(request.token)
+            call.sessions.set(session)
+            call.respond(HttpStatusCode.OK)
+        }
         // Resends the email-verification message.
-        post("/verify-email/resend") {}
+        post("/verify-email/resend") {
+            val request = call.receive<EmailVerificationRequest>()
+            val delivery = Service.authService.requestEmailVerification(request.email)
+            Service.emailService.sendVerificationEmail(delivery)
+            call.respond(HttpStatusCode.OK)
+        }
         // Authenticates a LoginRequest and creates a cookie-backed session.
         post("/login") {
             val request = call.receive<LoginRequest>()
-            val userPrincipal = Service.authService.loginUser(request.email, request.password)
-            val session = Service.authService.createSession(userPrincipal.id)
-
-            call.sessions.set(UserSession(cookie = session.cookie))
+            val session = Service.authService.loginUser(request.email, request.password)
+            call.sessions.set(session)
             call.respond(status = HttpStatusCode.OK, message = "You are succesfully logged in")
 
 
         }
         // Starts Google authentication or registration.
-        get("/google") {}
+        get("/google") {
+            call.respondRedirect ( "/oidc/google/login" )
+        }
         // Sends a password-reset message.
-        post("/password-reset/request") {}
+        post("/password-reset/request") {
+            val request = call.receive<PasswordResetRequest>()
+            val delivery = Service.authService.requestPasswordReset(request.email)
+            Service.emailService.sendPasswordResetEmail(delivery)
+            call.respond(HttpStatusCode.OK)
+        }
         // Confirms a password-reset request.
-        post("/password-reset/confirm") {}
+        post("/password-reset/confirm") {
+            val request = call.receive<ConfirmPasswordResetRequest>()
+            val session = Service.authService.confirmPasswordReset(request.token, request.newPassword)
+            call.sessions.set(session)
+            call.respond(HttpStatusCode.OK)
+        }
         // Ends the current user session.
         authenticate("auth-session") {
 
             post("/logout") {
                 val userPrincipal = checkNotNull(call.principal<UserPrincipal>())
-                Service.authService.logout(userPrincipal.id)
+                Service.authService.logoutUser(userPrincipal.id)
                 call.respond(status = HttpStatusCode.OK, message = "You are succesfully logged out")
             }
         }
