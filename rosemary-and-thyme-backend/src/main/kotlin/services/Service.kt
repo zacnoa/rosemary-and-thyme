@@ -8,8 +8,8 @@ import org.jooq.DSLContext
  * Central access point for application services and their shared database, object-storage, and email clients.
  *
  * Service operations are organized as extension functions on [RecipeService], [UserService],
- * [AuthService], [S3Service], and [EmailService]. The required clients must be initialized during application startup
- * before a service operation uses them.
+ * [AuthService], [S3Service], [EmailService], and [CronService]. The required clients must be initialized
+ * during application startup before a service operation uses them.
  */
 object Service {
     private var dslContextNullable: DSLContext? = null
@@ -24,6 +24,7 @@ object Service {
     val authService = AuthService()
     val s3Service = S3Service()
     val emailService = EmailService()
+    val cronService = CronService()
 
     /**
      * Shared client used to send transactional emails.
@@ -133,4 +134,7 @@ class S3Service
 
 /** Namespace for transactional email operations. */
 class EmailService
+
+/** Namespace for scheduled maintenance operations. */
+class CronService
 

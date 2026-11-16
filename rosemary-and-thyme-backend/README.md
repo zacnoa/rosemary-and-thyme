@@ -40,7 +40,7 @@ A media Worker is required to serve these URLs. It must verify the RS256 signatu
 | Search URL `/recipe-images/{userId}/{recipeId}/{imageId}?token=…` | `userId`, `recipeId`, and `imageId` |
 | Detail cookie `recipe_media_token` | `userId` and `recipeId` |
 
-A search URL token must include `imageId`. The browser sends the detail cookie only to hosts under `rosemary-and-thyme.com` on `/recipe-images/` paths. The detail endpoint must enforce recipe visibility before its cookie can safely grant access to private recipe images. Exclude the `token` query parameter from request logs.
+A search URL token must include `imageId`. The browser sends the detail cookie only to hosts under `rosemary-and-thyme.com` on `/recipe-images/` paths. `GET /recipe/{id}` issues the cookie after checking visibility. A private recipe is visible only to its authenticated owner, and other viewers receive `404 Not Found`. Exclude the `token` query parameter from request logs.
 
 ## Building & Running
 To build or run the project, use one of the following tasks:

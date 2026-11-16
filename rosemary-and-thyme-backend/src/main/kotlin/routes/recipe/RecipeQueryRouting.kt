@@ -26,7 +26,7 @@ import java.time.Instant
  * Registers recipe search and detail routes under `/recipe`.
  * Search resolves the session when present, returns a page as a JSON array, and sends the next
  * cursor in `X-Next-Cursor`. Each search image URL carries a JWT scoped to that image.
- * The detail route issues an HTTP-only media cookie scoped to the recipe.
+ * The detail route checks recipe visibility before issuing its HTTP-only media cookie.
  */
 fun Route.recipeQueryingRoutes() {
     get("/search") {
@@ -74,15 +74,18 @@ fun Route.recipeQueryingRoutes() {
 
         call.response.header(HttpHeaders.CacheControl, "private, no-store")
         page.nextCursor?.let { call.response.header("X-Next-Cursor", it) }
-        call.respond(items)
+        call.respond(status=HttpStatusCode.OK,items)
     }
     // Returns a recipe identified by a UUID path parameter.
     get("/{id}") {
-
-
         val id = call.requireUuidPathParameter("id")
-        
-        val recipe=Service.recipeService.getRecipeById(id)
+        call.response.header(HttpHeaders.CacheControl, "private, no-store")
+
+        val userPrincipal = call.sessions.get<UserSession>()?.let { session ->
+            Service.authService.authenticateSession(session.cookie)
+        }
+
+        val recipe = Service.recipeService.getRecipeById(id, userPrincipal)
         val jwt= JWT.create()
         .withIssuer("rosemary-and-thyme")
         .withAudience("rosemary-and-thyme-worker")

@@ -10,10 +10,10 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.Service
-import rosemary_and_thyme.services.user_service.cancelDelete
 import rosemary_and_thyme.services.user_service.requestUserDelete
 import rosemary_and_thyme.services.auth_service.requestPasswordReset
 import rosemary_and_thyme.services.email_service.sendPasswordResetEmail
+import rosemary_and_thyme.services.user_service.cancelUserDelete
 
 /** Registers authenticated account-management routes under `/user`. */
 fun Route.userRoutes() {
@@ -37,7 +37,7 @@ fun Route.userRoutes() {
         }
         // Cancels the authenticated account's pending deletion.
         delete("/delete") {
-            Service.userService.cancelDelete(checkNotNull(call.principal<UserPrincipal>()))
+            Service.userService.cancelUserDelete(checkNotNull(call.principal<UserPrincipal>()))
         }
     }
 }

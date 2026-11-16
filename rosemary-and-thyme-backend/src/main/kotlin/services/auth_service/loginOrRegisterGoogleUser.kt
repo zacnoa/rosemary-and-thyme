@@ -46,6 +46,8 @@ fun AuthService.loginOrRegisterGoogleUser(subject: String, email: String): UserP
             return@transactionResult identityUser.toUserPrincipal()
         }
 
+        // For addresses Google does not host, email_verified can remain true after the mailbox changes owners.
+        // Linking by email can then give a different person access to the existing local account.
         val existingUser = tx.selectFrom(USERS)
             .where(DSL.lower(USERS.EMAIL).eq(normalizedEmail))
             .fetchOne()

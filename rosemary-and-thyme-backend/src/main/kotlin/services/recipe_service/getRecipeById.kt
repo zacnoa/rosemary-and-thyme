@@ -5,24 +5,30 @@ import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.models.responses.RecipeContentDTO
 import rosemary_and_thyme.models.responses.RecipeDTO
+import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.RecipeService
 import rosemary_and_thyme.services.Service
 import java.util.UUID
 
 
 /**
- * Retrieves a recipe and maps its JSON content column to [RecipeDTO].
+ * Retrieves a recipe visible to the viewer and maps its JSON content column to [RecipeDTO].
  *
  * @param id identifier of the requested recipe
+ * @param userPrincipal authenticated viewer, or `null` for a guest
  * @return the matching recipe
- * @throws ResourceNotFoundException if no recipe exists with the supplied identifier
+ * @throws ResourceNotFoundException if the recipe is missing or private and owned by someone else
  */
-
-//TODO(Add ownership check)
-fun RecipeService.getRecipeById(id: UUID):RecipeDTO=
-    
+fun RecipeService.getRecipeById(id: UUID, userPrincipal: UserPrincipal?): RecipeDTO =
     Service.dsl.selectFrom(RECIPES)
     .where(RECIPES.ID.eq(id))
+    .and(
+        if (userPrincipal == null) {
+            RECIPES.IS_PRIVATE.eq(false)
+        } else {
+            RECIPES.IS_PRIVATE.eq(false).or(RECIPES.USER_ID.eq(userPrincipal.id))
+        }
+    )
     .fetchOne()?.let{record->
         val content=Json.decodeFromString<RecipeContentDTO>(checkNotNull(record.get(RECIPES.CONTENT)).data())
 

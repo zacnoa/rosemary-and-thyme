@@ -18,5 +18,6 @@ suspend fun Application.modules(){
 
     
     configureService()
+    configureCron()
 
 }
