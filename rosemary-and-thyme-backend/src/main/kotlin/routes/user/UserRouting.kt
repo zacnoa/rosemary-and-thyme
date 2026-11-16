@@ -11,7 +11,7 @@ import io.ktor.server.routing.route
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.Service
 import rosemary_and_thyme.services.user_service.cancelDelete
-import rosemary_and_thyme.services.user_service.requestDelete
+import rosemary_and_thyme.services.user_service.requestUserDelete
 import rosemary_and_thyme.services.auth_service.requestPasswordReset
 import rosemary_and_thyme.services.email_service.sendPasswordResetEmail
 
@@ -33,7 +33,7 @@ fun Route.userRoutes() {
         }
         // Schedules the authenticated account for deletion after 30 days.
         post("/delete") {
-            Service.userService.requestDelete(checkNotNull(call.principal<UserPrincipal>()))
+            Service.userService.requestUserDelete(checkNotNull(call.principal<UserPrincipal>()))
         }
         // Cancels the authenticated account's pending deletion.
         delete("/delete") {

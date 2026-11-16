@@ -14,10 +14,11 @@ import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.HexFormat
+import java.util.UUID
 import kotlin.io.encoding.Base64
 
 /**
- * Provides cryptographic operations for passwords, session tokens, and JWT signing.
+ * Provides password hashing, session token generation, JWT signing, and recipe cursor encoding.
  * The RSA signing algorithm must be initialized from application configuration before issuing JWTs.
  */
 object CryptoService {
@@ -94,6 +95,40 @@ object CryptoService {
         val tokenBytes = ByteArray(TOKEN_LENGTH_BYTES)
         secureRandom.nextBytes(tokenBytes)
         return tokenEncoder.encode(tokenBytes)
+    }
+
+    /** Position of a recipe in a feed ordered by descending like count and recipe ID. */
+    data class RecipeFeedCursor(val likes: Int, val recipeId: UUID)
+
+    /**
+     * Encodes the `likes:recipeId` position as Base64URL without padding.
+     * The cursor is a pagination value. Recipe access is checked by the search query.
+     *
+     * @param likes like count of the last recipe returned
+     * @param recipeId ID of the last recipe returned
+     * @return cursor to pass in the next search request
+     */
+    fun encodeRecipeFeedCursor(likes: Int, recipeId: UUID): String =
+        tokenEncoder.encode("$likes:$recipeId".encodeToByteArray())
+
+    /**
+     * Decodes a recipe cursor and validates its like count and recipe ID.
+     *
+     * @param token cursor supplied by the client
+     * @return the decoded position, or `null` if the cursor is invalid
+     */
+    fun decodeRecipeFeedCursor(token: String): RecipeFeedCursor? {
+        if (token.length > 64) return null
+
+        return runCatching {
+            val parts = tokenEncoder.decode(token).decodeToString().split(':', limit = 2)
+            if (parts.size != 2) return@runCatching null
+
+            val likes = parts[0].toIntOrNull()?.takeIf { it >= 0 }
+                ?: return@runCatching null
+
+            RecipeFeedCursor(likes, UUID.fromString(parts[1]))
+        }.getOrNull()
     }
 
 

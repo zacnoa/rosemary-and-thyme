@@ -8,6 +8,9 @@ ktor:
 frontend:
   url: "${FRONTEND_URL}"
 
+recipeMedia:
+  workerBaseUrl: "${RECIPE_MEDIA_WORKER_URL:https://rosemary-and-thyme.com}"
+
 resend:
   apiKey: "${RESEND_API_KEY}"
   from: "${RESEND_FROM}"

@@ -14,7 +14,7 @@ import java.time.OffsetDateTime
  * @return the number of updated rows
  * @throws IllegalStateException if exactly one account was not updated
  */
-fun UserService.requestDelete(user: UserPrincipal) =
+fun UserService.requestUserDelete(user: UserPrincipal) =
     
    Service.dsl.update(USERS)
         .set(USERS.DELETION_REQUESTED_AT, OffsetDateTime.now())
@@ -34,7 +34,7 @@ fun UserService.requestDelete(user: UserPrincipal) =
  * @return the number of updated rows
  * @throws IllegalStateException if exactly one account was not updated
  */
-fun UserService.cancelDelete(user:UserPrincipal) =
+fun UserService.cancelUserDelete(user:UserPrincipal) =
    Service.dsl.update(USERS)
         .setNull(USERS.DELETION_REQUESTED_AT)
         .where(USERS.ID.eq(user.id))
