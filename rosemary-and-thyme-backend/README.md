@@ -42,6 +42,17 @@ A media Worker is required to serve these URLs. It must verify the RS256 signatu
 
 A search URL token must include `imageId`. The browser sends the detail cookie only to hosts under `rosemary-and-thyme.com` on `/recipe-images/` paths. `GET /recipe/{id}` issues the cookie after checking visibility. A private recipe is visible only to its authenticated owner, and other viewers receive `404 Not Found`. Exclude the `token` query parameter from request logs.
 
+## Email verification
+
+`POST /auth/register` returns `verificationId` and `emailSent`. Keep the ID while registration is pending. If `emailSent` is `false`, use that ID to request a replacement email.
+
+| Endpoint | JSON body |
+|----------|-----------|
+| `POST /auth/verify-email` | `{"verificationId":"…","code":"012345"}` |
+| `POST /auth/verify-email/resend` | `{"verificationId":"…"}` |
+
+The six-digit code expires after five minutes. Confirming consumes it and starts a session. Resending replaces the code and resets its expiry under the same ID, including after the previous code expires. Configure rate limiting for confirmation in Cloudflare before exposing the endpoint.
+
 ## Building & Running
 To build or run the project, use one of the following tasks:
 

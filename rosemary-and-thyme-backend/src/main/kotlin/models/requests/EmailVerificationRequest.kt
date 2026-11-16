@@ -3,17 +3,18 @@ package rosemary_and_thyme.models.requests
 import kotlinx.serialization.Serializable
 
 /**
- * Requests another email-verification link.
+ * Requests a replacement email verification code.
  *
- * @property email email address associated with the unverified account
+ * @property verificationId identifier returned when the registration started
  */
 @Serializable
-data class EmailVerificationRequest(val email: String)
+data class ResendEmailVerificationRequest(val verificationId: String)
 
 /**
- * Confirms an email address using the token received through the verification link.
+ * Confirms an email address using the registration identifier and the code sent by email.
  *
- * @property token raw single-use verification token, not its stored hash
+ * @property verificationId identifier returned when the registration started
+ * @property code six-digit code sent by email, including any leading zeros
  */
 @Serializable
-data class ConfirmEmailVerificationRequest(val token: String)
+data class ConfirmEmailVerificationRequest(val verificationId: String, val code: String)

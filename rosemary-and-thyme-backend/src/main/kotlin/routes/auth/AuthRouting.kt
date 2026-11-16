@@ -1,5 +1,7 @@
 package rosemary_and_thyme.routes.auth
 
+import com.resend.core.exception.ResendException
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.principal
@@ -11,6 +13,7 @@ import io.ktor.server.routing.route
 import rosemary_and_thyme.models.requests.RegisterRequest
 import rosemary_and_thyme.services.Service
 import rosemary_and_thyme.services.auth_service.registerUser
+import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondRedirect
 import io.ktor.server.sessions.sessions
@@ -18,9 +21,10 @@ import io.ktor.server.sessions.set
 import rosemary_and_thyme.models.requests.LoginRequest
 import rosemary_and_thyme.models.requests.PasswordResetRequest
 import rosemary_and_thyme.models.requests.ConfirmPasswordResetRequest
-import rosemary_and_thyme.models.requests.EmailVerificationRequest
+import rosemary_and_thyme.models.requests.ResendEmailVerificationRequest
 import rosemary_and_thyme.models.requests.ConfirmEmailVerificationRequest
-import rosemary_and_thyme.services.auth_service.requestEmailVerification
+import rosemary_and_thyme.models.responses.EmailVerificationStartedResponse
+import rosemary_and_thyme.services.auth_service.resendEmailVerification
 import rosemary_and_thyme.services.auth_service.confirmEmailVerification
 import rosemary_and_thyme.services.auth_service.requestPasswordReset
 import rosemary_and_thyme.services.auth_service.confirmPasswordReset
@@ -41,20 +45,26 @@ fun Route.authRoutes() {
                 password = request.password,
                 email = request.email
             )
-            Service.emailService.sendVerificationEmail(delivery)
-            call.respond(status = HttpStatusCode.OK, "You have succesfully signed up")
+            val emailSent = runCatching { Service.emailService.sendVerificationEmail(delivery) }
+                .onFailure { error ->
+                    if (error !is ResendException) throw error
+                }
+                .isSuccess
+
+            call.response.header(HttpHeaders.CacheControl, "no-store")
+            call.respond(HttpStatusCode.OK, EmailVerificationStartedResponse(delivery.verificationId, emailSent))
         }
         // Verifies a user's email address.
         post("/verify-email") {
             val request = call.receive<ConfirmEmailVerificationRequest>()
-            val session = Service.authService.confirmEmailVerification(request.token)
+            val session = Service.authService.confirmEmailVerification(request.verificationId, request.code)
             call.sessions.set(session)
             call.respond(HttpStatusCode.OK)
         }
         // Resends the email-verification message.
         post("/verify-email/resend") {
-            val request = call.receive<EmailVerificationRequest>()
-            val delivery = Service.authService.requestEmailVerification(request.email)
+            val request = call.receive<ResendEmailVerificationRequest>()
+            val delivery = Service.authService.resendEmailVerification(request.verificationId)
             Service.emailService.sendVerificationEmail(delivery)
             call.respond(HttpStatusCode.OK)
         }

@@ -12,12 +12,12 @@ import rosemary_and_thyme.services.Service
 /**
  * Registers a user while preserving the supplied username for display.
  * Username and email values are normalized separately for case-insensitive uniqueness checks.
- * The account and its first verification token are created in the same transaction.
+ * The account and its first verification code are created in the same transaction.
  *
  * @param username display name selected by the user
  * @param password plaintext password to encode before storage
  * @param email email address associated with the account
- * @return verification details for the future email sender, never for the HTTP response
+ * @return verification ID for the client and code for email delivery
  * @throws BadRequestException if the normalized email is blank or too long
  * @throws UserAlreadyExists if the insert conflicts with an existing user
  */

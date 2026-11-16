@@ -97,6 +97,10 @@ object CryptoService {
         return tokenEncoder.encode(tokenBytes)
     }
 
+    /** Generates a six-digit email verification code, preserving leading zeros. */
+    fun generateEmailVerificationCode(): String =
+        secureRandom.nextInt(1_000_000).toString().padStart(6, '0')
+
     /** Position of a recipe in a feed ordered by descending like count and recipe ID. */
     data class RecipeFeedCursor(val likes: Int, val recipeId: UUID)
 

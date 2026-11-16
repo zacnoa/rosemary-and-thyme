@@ -9,40 +9,51 @@ import rosemary_and_thyme.services.AuthService
 import rosemary_and_thyme.services.CryptoService
 import rosemary_and_thyme.services.Service
 import java.time.OffsetDateTime
+import java.util.UUID
 
 /**
- * Consumes a verification token, confirms the email, and creates a session in one transaction.
- * Other verification tokens are invalidated; the route sets the cookie only after commit.
+ * Consumes a verification code, confirms the email, and creates a session in one transaction.
+ * Other verification records are invalidated; the route sets the cookie only after commit.
  *
- * @param token raw token delivered through the verification link
+ * @param verificationId identifier returned when the registration started
+ * @param code raw code sent to the account's email address
  * @return the new session for the verified account
- * @throws BadRequestException if the token is invalid, expired, used, or the email is already verified
+ * @throws BadRequestException if the code is invalid, expired, used, or the email is already verified
  */
-fun AuthService.confirmEmailVerification(token: String): UserSession {
-    if (!Regex("^[A-Za-z0-9_-]{43}$").matches(token)) throw invalidVerificationToken()
-    val tokenHash = CryptoService.sha256(token)
+fun AuthService.confirmEmailVerification(verificationId: String, code: String): UserSession {
+    val recordId = runCatching { UUID.fromString(verificationId) }.getOrNull()
+        ?: throw invalidVerificationCode()
 
     return Service.dsl.transactionResult { configuration ->
         val tx = DSL.using(configuration)
-        val userId = tx.select(EMAIL_VERIFICATION_TOKENS.USER_ID)
+        val verification = tx.select(EMAIL_VERIFICATION_TOKENS.USER_ID, EMAIL_VERIFICATION_TOKENS.TOKEN_HASH)
             .from(EMAIL_VERIFICATION_TOKENS)
-            .where(EMAIL_VERIFICATION_TOKENS.TOKEN_HASH.eq(tokenHash))
-            .fetchOne()?.value1() ?: throw invalidVerificationToken()
+            .where(EMAIL_VERIFICATION_TOKENS.ID.eq(recordId))
+            .and(EMAIL_VERIFICATION_TOKENS.USED_AT.isNull)
+            .and(EMAIL_VERIFICATION_TOKENS.EXPIRES_AT.gt(OffsetDateTime.now()))
+            .fetchOne() ?: throw invalidVerificationCode()
+
+        val userId = checkNotNull(verification.get(EMAIL_VERIFICATION_TOKENS.USER_ID))
+        val tokenHash = CryptoService.sha256("$userId:$code")
+        if (verification.get(EMAIL_VERIFICATION_TOKENS.TOKEN_HASH) != tokenHash) {
+            throw invalidVerificationCode()
+        }
 
         val user = tx.selectFrom(USERS)
             .where(USERS.ID.eq(userId))
             .forUpdate()
-            .fetchOne() ?: throw invalidVerificationToken()
-        if (user.emailVerified == true) throw invalidVerificationToken()
+            .fetchOne() ?: throw invalidVerificationCode()
+        if (user.emailVerified == true) throw invalidVerificationCode()
 
         val now = OffsetDateTime.now()
         tx.update(EMAIL_VERIFICATION_TOKENS)
             .set(EMAIL_VERIFICATION_TOKENS.USED_AT, now)
-            .where(EMAIL_VERIFICATION_TOKENS.TOKEN_HASH.eq(tokenHash))
+            .where(EMAIL_VERIFICATION_TOKENS.ID.eq(recordId))
+            .and(EMAIL_VERIFICATION_TOKENS.TOKEN_HASH.eq(tokenHash))
             .and(EMAIL_VERIFICATION_TOKENS.USED_AT.isNull)
             .and(EMAIL_VERIFICATION_TOKENS.EXPIRES_AT.gt(now))
             .returning(EMAIL_VERIFICATION_TOKENS.USER_ID)
-            .fetchOne() ?: throw invalidVerificationToken()
+            .fetchOne() ?: throw invalidVerificationCode()
 
         check(tx.update(USERS)
             .set(USERS.EMAIL_VERIFIED, true)
@@ -59,5 +70,5 @@ fun AuthService.confirmEmailVerification(token: String): UserSession {
     }
 }
 
-/** Returns the same error for all rejected verification tokens. */
-private fun invalidVerificationToken() = BadRequestException("The email verification token is invalid or expired")
+/** Returns the same error for all rejected verification codes. */
+private fun invalidVerificationCode() = BadRequestException("The email verification code is invalid or expired")
