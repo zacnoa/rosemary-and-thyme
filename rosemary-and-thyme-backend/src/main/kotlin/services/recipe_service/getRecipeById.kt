@@ -17,7 +17,7 @@ import java.util.UUID
  * @param id identifier of the requested recipe
  * @param userPrincipal authenticated viewer, or `null` for a guest
  * @return the matching recipe
- * @throws ResourceNotFoundException if the recipe is missing or private and owned by someone else
+ * @throws ResourceNotFoundException if the recipe is missing, or private or a draft without viewer ownership
  */
 fun RecipeService.getRecipeById(id: UUID, userPrincipal: UserPrincipal?): RecipeDTO =
     Service.dsl.selectFrom(RECIPES)
@@ -25,8 +25,11 @@ fun RecipeService.getRecipeById(id: UUID, userPrincipal: UserPrincipal?): Recipe
     .and(
         if (userPrincipal == null) {
             RECIPES.IS_PRIVATE.eq(false)
+                .and(RECIPES.IS_DRAFT.eq(false))
         } else {
-            RECIPES.IS_PRIVATE.eq(false).or(RECIPES.USER_ID.eq(userPrincipal.id))
+            RECIPES.IS_PRIVATE.eq(false)
+                .and(RECIPES.IS_DRAFT.eq(false))
+                .or(RECIPES.USER_ID.eq(userPrincipal.id))
         }
     )
     .fetchOne()?.let{record->
@@ -45,6 +48,7 @@ fun RecipeService.getRecipeById(id: UUID, userPrincipal: UserPrincipal?): Recipe
                 sideNote=checkNotNull(record.get(RECIPES.SIDE_NOTES)),
                 createdDate=record.get(RECIPES.CREATED_DATE).toString(),
                 isPrivate=checkNotNull(record.get(RECIPES.IS_PRIVATE)),
+                version=checkNotNull(record.get(RECIPES.VERSION)),
 
                     
                 imageIds=content.imageIds,

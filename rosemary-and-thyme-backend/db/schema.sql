@@ -146,6 +146,10 @@ CREATE TABLE IF NOT EXISTS public.recipes (
         ON UPDATE NO ACTION
         ON DELETE CASCADE
 );
+--Version used to reject stale recipe replacements; interaction counters do not change it.
+ALTER TABLE public.recipes
+    ADD COLUMN IF NOT EXISTS version bigint NOT NULL DEFAULT 1;
+
 --Supports the owner's dashboard query with `WHERE user_id = :userId ORDER BY name ASC, id ASC`, including private recipes
 CREATE INDEX IF NOT EXISTS recipes_user_name_id_idx
     ON public.recipes(user_id, title ASC, id ASC);

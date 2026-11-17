@@ -24,6 +24,7 @@ import rosemary_and_thyme.models.requests.ConfirmPasswordResetRequest
 import rosemary_and_thyme.models.requests.ResendEmailVerificationRequest
 import rosemary_and_thyme.models.requests.ConfirmEmailVerificationRequest
 import rosemary_and_thyme.models.responses.EmailVerificationStartedResponse
+import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.services.auth_service.resendEmailVerification
 import rosemary_and_thyme.services.auth_service.confirmEmailVerification
 import rosemary_and_thyme.services.auth_service.requestPasswordReset
@@ -81,12 +82,23 @@ fun Route.authRoutes() {
         get("/google") {
             call.respondRedirect ( "/oidc/google/login" )
         }
-        // Sends a password-reset message.
+        // Returns the same public response for missing accounts and accepted reset requests.
         post("/password-reset/request") {
             val request = call.receive<PasswordResetRequest>()
-            val delivery = Service.authService.requestPasswordReset(request.email)
-            Service.emailService.sendPasswordResetEmail(delivery)
-            call.respond(HttpStatusCode.OK)
+
+            runCatching {
+                val delivery = Service.authService.requestPasswordReset(request.email)
+                Service.emailService.sendPasswordResetEmail(delivery)
+            }.onFailure { error ->
+                if (error !is ResourceNotFoundException && error !is ResendException) {
+                    throw error
+                }
+            }
+
+            call.respond(
+                HttpStatusCode.OK,
+                "If an account exists for this email, password reset instructions will be sent."
+            )
         }
         // Confirms a password-reset request.
         post("/password-reset/confirm") {

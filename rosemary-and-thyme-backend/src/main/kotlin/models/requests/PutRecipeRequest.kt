@@ -9,6 +9,7 @@ import rosemary_and_thyme.models.responses.InstructionDTO
  * Resource identity, ownership, creation time, and counters are controlled by the server.
  *
  * @property imageIds complete set of image identifiers retained by the replacement recipe
+ * @property version recipe version read by the client; stale replacements are rejected
  */
 @Serializable
 data class PutRecipeRequest(
@@ -23,5 +24,6 @@ data class PutRecipeRequest(
     val ingredientsOrder: List<String>,
     val instructionsOrder: List<String>,
     val heroImagesOrder: List<String>,
-    val isPrivate: Boolean
+    val isPrivate: Boolean,
+    val version: Long
 )

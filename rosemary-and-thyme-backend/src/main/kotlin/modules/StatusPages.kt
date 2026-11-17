@@ -20,6 +20,7 @@ import rosemary_and_thyme.models.exceptions.AuthenticationException
 import rosemary_and_thyme.models.exceptions.EmailNotVerified
 import rosemary_and_thyme.models.exceptions.BadRecipeFormat
 import rosemary_and_thyme.models.exceptions.RecipeImageUploadException
+import rosemary_and_thyme.models.exceptions.RecipeVersionConflict
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.models.exceptions.UserAlreadyExists
 
@@ -111,6 +112,14 @@ fun Application.configureStatusPages() {
                 type = "problem/user-exists",
                 title = "Username already exists",
                 detail = cause.message ?: "A user with that username already exists"
+            )
+        }
+        exception<RecipeVersionConflict> { call, cause ->
+            call.respondProblem(
+                status = HttpStatusCode.Conflict,
+                type = "problem/recipe-version-conflict",
+                title = "Recipe was modified",
+                detail = cause.message ?: "Reload the recipe before saving again"
             )
         }
         exception<RecipeImageUploadException> { call, cause ->

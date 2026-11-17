@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
  * image membership and display order.
  *
  * @property imageIds identifiers used to derive media URLs without exposing storage object keys
+ * @property version current edit version to send with the next recipe replacement
  */
 @Serializable
 data class RecipeDTO(
@@ -31,7 +32,8 @@ data class RecipeDTO(
     val instructionsOrder: List<String>,
     val heroImagesOrder: List<String>,
 
-    val isPrivate: Boolean
+    val isPrivate: Boolean,
+    val version: Long
 )
 
 /**

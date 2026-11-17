@@ -21,7 +21,7 @@ fun Application.configureDatabase(): DSLContext{
         username = databaseConfig.property("user").getString()
         password = databaseConfig.property("password").getString()
         
-        maximumPoolSize=10
+        maximumPoolSize=20
     }
     val dataSource= HikariDataSource(hikariConfig)
 

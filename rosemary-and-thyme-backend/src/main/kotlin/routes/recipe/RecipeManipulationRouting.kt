@@ -35,7 +35,8 @@ fun Route.recipeManipulationRoutes() {
             val uploads = Service.recipeService.uploadImages(
                 recipeId = recipeId,
                 userPrincipal = userPrincipal,
-                imageIds = request.imageIds
+                imageIds = request.imageIds,
+                imageSizes = request.imageSizes
             )
 
             call.respond(
@@ -55,7 +56,7 @@ fun Route.recipeManipulationRoutes() {
 
             call.respond(HttpStatusCode.NoContent)
         }
-        // Replaces an existing recipe.
+        // Replaces the expected recipe version and returns the new edit version.
         put("/{id}") {
             val request = call.receive<PutRecipeRequest>()
 
@@ -63,29 +64,35 @@ fun Route.recipeManipulationRoutes() {
 
             val userPrincipal = checkNotNull(call.principal<UserPrincipal>())
 
-            Service.recipeService.putRecipe(request, userPrincipal, id)
+            val version = Service.recipeService.putRecipe(request, userPrincipal, id)
 
-            call.respond(status = HttpStatusCode.OK, message = "Recipe was successfully saved")
+            call.respond(
+                status = HttpStatusCode.OK,
+                message = mapOf("version" to version)
+            )
         }
         // Creates a like for a recipe.
         post("/{id}/like") {
             val id = call.requireUuidPathParameter("id")
             val userPrincipal = checkNotNull(call.principal<UserPrincipal>())
             Service.recipeService.postLike(id,userPrincipal)
+            call.respond(status= HttpStatusCode.OK,message="You successfully like this recipe")
         }
         // Removes the current user's like from a recipe.
         delete("/{id}/like") {
             val id = call.requireUuidPathParameter("id")
             val userPrincipal = checkNotNull(call.principal<UserPrincipal>())
             Service.recipeService.deleteLike(id,userPrincipal)
+            call.respond(status= HttpStatusCode.OK,message="You successfully unliked this recipe")
             
         }
 
         // Records that a recipe was made.
         post("/{id}/made") {
             val id = call.requireUuidPathParameter("id")
+            val userPrincipal = checkNotNull(call.principal<UserPrincipal>())
 
-            Service.recipeService.postMade(id)
+            Service.recipeService.postMade(id, userPrincipal)
 
             call.respond(
                 status = HttpStatusCode.OK,

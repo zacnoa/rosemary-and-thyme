@@ -12,6 +12,7 @@ import java.util.UUID
 
 /**
  * Creates a like for a recipe on behalf of the authenticated user.
+ * Only public, completed recipes can be liked.
  * Recipe owners cannot like their own recipes, and duplicate likes are ignored by the database.
  *
  * @param recipeId identifier of the recipe to like
@@ -37,13 +38,15 @@ fun RecipeService.postLike(
                 .from(RECIPES)
                 .where(RECIPES.ID.eq(recipeId))
                 .and(RECIPES.USER_ID.ne(userPrincipal.id))
+                .and(RECIPES.IS_PRIVATE.eq(false))
+                .and(RECIPES.IS_DRAFT.eq(false))
         )
         .onConflictDoNothing()
         .execute()
 
     if (affectedRows != 1) {
         throw BadRequestException(
-            "The recipe does not exist, is already liked, or belongs to the authenticated user"
+            "The recipe is unavailable, already liked, or belongs to the authenticated user"
         )
     }
 }

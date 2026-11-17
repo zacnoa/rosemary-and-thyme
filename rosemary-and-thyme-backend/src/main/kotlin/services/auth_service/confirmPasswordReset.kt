@@ -13,7 +13,8 @@ import java.time.OffsetDateTime
 
 /**
  * Consumes a reset token and replaces the password and session in one transaction.
- * Other reset tokens and existing sessions are invalidated; the new cookie is set only after commit.
+ * The token is checked before hashing the password and checked again when consumed.
+ * Other reset tokens and existing sessions are invalidated. The new cookie is set only after commit.
  *
  * @param token raw token delivered by email
  * @param newPassword plaintext replacement password
@@ -28,14 +29,19 @@ fun AuthService.confirmPasswordReset(token: String, newPassword: String): UserSe
         throw BadRequestException("Password must not be blank or longer than 1024 characters")
     }
     val tokenHash = CryptoService.sha256(token)
+
+    val userId = Service.dsl.select(PASSWORD_RESET_TOKENS.USER_ID)
+        .from(PASSWORD_RESET_TOKENS)
+        .where(PASSWORD_RESET_TOKENS.TOKEN_HASH.eq(tokenHash))
+        .and(PASSWORD_RESET_TOKENS.USED_AT.isNull)
+        .and(PASSWORD_RESET_TOKENS.EXPIRES_AT.gt(OffsetDateTime.now()))
+        .fetchOne(PASSWORD_RESET_TOKENS.USER_ID)
+        ?: throw invalidResetToken()
+
     val passwordHash = CryptoService.hashPassword(newPassword)
 
     return Service.dsl.transactionResult { configuration ->
         val tx = DSL.using(configuration)
-        val userId = tx.select(PASSWORD_RESET_TOKENS.USER_ID)
-            .from(PASSWORD_RESET_TOKENS)
-            .where(PASSWORD_RESET_TOKENS.TOKEN_HASH.eq(tokenHash))
-            .fetchOne()?.value1() ?: throw invalidResetToken()
 
         // Serialize different reset tokens for the same user before touching token rows.
         tx.select(USERS.ID).from(USERS).where(USERS.ID.eq(userId))

@@ -34,10 +34,12 @@ fun Route.userRoutes() {
         // Schedules the authenticated account for deletion after 30 days.
         post("/delete") {
             Service.userService.requestUserDelete(checkNotNull(call.principal<UserPrincipal>()))
+            call.respond(HttpStatusCode.OK)
         }
         // Cancels the authenticated account's pending deletion.
         delete("/delete") {
             Service.userService.cancelUserDelete(checkNotNull(call.principal<UserPrincipal>()))
+            call.respond(HttpStatusCode.OK)
         }
     }
 }

@@ -6,7 +6,8 @@ import rosemary_and_thyme.services.S3Service
 import rosemary_and_thyme.services.Service
 import java.util.UUID
 
-private const val MAX_IMAGE_SIZE_BYTES = 10L * 1024 * 1024
+/** Maximum accepted size of a recipe image in bytes. */
+const val MAX_IMAGE_SIZE_BYTES = 10L * 1024 * 1024
 
 /**
  * Verifies that every expected recipe image exists in R2 and has an accepted size.

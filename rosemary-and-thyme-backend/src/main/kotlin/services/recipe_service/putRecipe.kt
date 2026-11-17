@@ -4,6 +4,7 @@ import org.jooq.JSONB
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.BadRecipeFormat
 import rosemary_and_thyme.models.exceptions.RecipeImageUploadException
+import rosemary_and_thyme.models.exceptions.RecipeVersionConflict
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.models.responses.RecipeContentDTO
 import rosemary_and_thyme.models.requests.PutRecipeRequest
@@ -17,12 +18,16 @@ import java.util.UUID
 
 /**
  * Replaces the editable data of a recipe owned by the authenticated user.
+ * Checks the edit version before reading R2 and again in the atomic update.
+ * Removed images are deleted only after a successful versioned update.
  *
  * @param request validated replacement data
  * @param userPrincipal authenticated user who must own the recipe
  * @param recipeId identifier of the recipe to update
+ * @return the new edit version of the saved recipe
  * @throws BadRecipeFormat if the replacement data fails validation
  * @throws RecipeImageUploadException if one or more requested images are not available in R2
+ * @throws RecipeVersionConflict if the version is stale or the recipe disappears before the update
  * @throws ResourceNotFoundException if the recipe does not exist or is owned by another user
  * @throws IllegalStateException if R2 reports a failure while deleting removed images
  */
@@ -34,29 +39,37 @@ import java.util.UUID
 // another owned recipe ID is intentional behavior rather than an authorization bypass.
 // Za običan edit endpoint korisnik uvijek može namjerno poslati ID nekog svojeg recepta.
 // Backend ne može znati koji je recept korisnik “mislio” uređivati.
-// Za zaštitu od slučajnog prepisivanja možemo kasnije dodati optimistic locking preko version stupca ili HTTP ETag/If-Match.
+// Version checks reject stale replacements before they can delete recipe images.
 
 suspend fun RecipeService.putRecipe(
     request: PutRecipeRequest,
     userPrincipal: UserPrincipal,
     recipeId: UUID
-) {
+): Long {
 
     val errorMessages = validateRecipe(request)
     if (errorMessages.isNotEmpty()) {
         throw BadRecipeFormat(message = errorMessages.joinToString(separator = "\n"))
     }
 
-    val previousContentJson = Service.dsl.select(RECIPES.CONTENT)
+    val previousRecord = Service.dsl.select(RECIPES.CONTENT, RECIPES.VERSION)
         .from(RECIPES)
         .where(RECIPES.ID.eq(recipeId))
         .and(RECIPES.USER_ID.eq(userPrincipal.id))
-        .fetchOne(RECIPES.CONTENT)
+        .fetchOne()
         ?: throw ResourceNotFoundException(
             "Recipe does not exist or does not belong to the authenticated user"
         )
 
-    val previousContent = deserializeRecipeContent(previousContentJson.toString())
+    if (previousRecord.get(RECIPES.VERSION) != request.version) {
+        throw RecipeVersionConflict(
+            "The recipe was modified. Reload it before saving again."
+        )
+    }
+
+    val previousContent = deserializeRecipeContent(
+        checkNotNull(previousRecord.get(RECIPES.CONTENT)).data()
+    )
     val removedImageObjectKeys = (previousContent.imageIds - request.imageIds)
         .mapTo(mutableSetOf()) { imageId ->
             Service.s3Service.recipeImageObjectKey(
@@ -86,7 +99,7 @@ suspend fun RecipeService.putRecipe(
         serializeRecipeContent(content)
     )
 
-    val affectedRows = Service.dsl.update(RECIPES)
+    val version = Service.dsl.update(RECIPES)
         .set(RECIPES.TITLE, request.title)
         .set(RECIPES.DESCRIPTION, request.description)
         .set(RECIPES.SIDE_NOTES, request.sideNote)
@@ -94,15 +107,17 @@ suspend fun RecipeService.putRecipe(
         .set(RECIPES.PORTIONS, request.portions)
         .set(RECIPES.IS_PRIVATE, request.isPrivate)
         .set(RECIPES.CONTENT, contentJson)
+        .set(RECIPES.VERSION, RECIPES.VERSION.plus(1L))
         .where(RECIPES.ID.eq(recipeId))
         .and(RECIPES.USER_ID.eq(userPrincipal.id))
-        .execute()
-
-    if (affectedRows != 1) {
-        throw ResourceNotFoundException(
-            "Recipe does not exist or does not belong to the authenticated user"
+        .and(RECIPES.VERSION.eq(request.version))
+        .returning(RECIPES.VERSION)
+        .fetchOne(RECIPES.VERSION)
+        ?: throw RecipeVersionConflict(
+            "The recipe changed or is no longer available. Reload it before saving again."
         )
-    }
 
     Service.s3Service.deleteImages(removedImageObjectKeys)
+
+    return version
 }

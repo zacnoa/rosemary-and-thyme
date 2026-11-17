@@ -19,23 +19,23 @@ private const val MAX_RECIPE_IMAGES = 20
 /**
  * Creates direct-upload grants for images that do not already exist in R2.
  * The supplied image IDs represent the complete image set intended for the recipe.
+ * The image limit applies to retained and newly added images after the requested deletions.
  *
  * @param recipeId recipe whose images are being prepared
  * @param userPrincipal authenticated owner of the recipe
  * @param imageIds complete set of client-generated image identifiers
+ * @param imageSizes exact file sizes in bytes for images not yet in R2
  * @return presigned PUT grants for image identifiers whose R2 objects do not exist
- * @throws BadRequestException if the IDs are invalid or do not match a draft's declared images
+ * @throws BadRequestException if the final image set exceeds the limit, the IDs are invalid,
+ * do not match a draft's images, or an upload size is missing or invalid
  * @throws ResourceNotFoundException if the recipe does not exist or belongs to another user
  */
 suspend fun RecipeService.uploadImages(
     recipeId: UUID,
     userPrincipal: UserPrincipal,
-    imageIds: Set<String>
+    imageIds: Set<String>,
+    imageSizes: Map<String, Long>
 ): Set<ImageUploadResponse> {
-    if (imageIds.size > MAX_RECIPE_IMAGES) {
-        throw BadRequestException("Only $MAX_RECIPE_IMAGES images are allowed per recipe")
-    }
-
     if (imageIds.any { imageId -> runCatching { UUID.fromString(imageId) }.isFailure }) {
         throw BadRequestException("Every image id must be a valid UUID")
     }
@@ -47,16 +47,24 @@ suspend fun RecipeService.uploadImages(
         .fetchOne()
         ?: throw ResourceNotFoundException("Recipe with that id does not exist")
 
-    if (recipeRecord.get(RECIPES.IS_DRAFT) == true) {
-        val declaredImageIds = deserializeRecipeContent(
-            recipeRecord.get(RECIPES.CONTENT).toString()
-        ).imageIds
+    val existingImageIds = deserializeRecipeContent(
+        recipeRecord.get(RECIPES.CONTENT).toString()
+    ).imageIds
 
-        if (imageIds != declaredImageIds) {
+    if (recipeRecord.get(RECIPES.IS_DRAFT) == true) {
+        if (imageIds != existingImageIds) {
             throw BadRequestException(
                 "Image ids must match the images declared by the recipe draft"
             )
         }
+    }
+
+    val deletedImages = existingImageIds - imageIds
+    val newImages = imageIds - existingImageIds
+    val imagesAfterSave = (existingImageIds - deletedImages) + newImages
+
+    if (imagesAfterSave.size > MAX_RECIPE_IMAGES) {
+        throw BadRequestException("Only $MAX_RECIPE_IMAGES images are allowed per recipe")
     }
 
     if (imageIds.isEmpty()) return emptySet()
@@ -83,6 +91,9 @@ suspend fun RecipeService.uploadImages(
     }
 
     return missingImageIds.mapTo(mutableSetOf()) { imageId ->
+        val sizeBytes = imageSizes[imageId]
+            ?: throw BadRequestException("Upload size is required for image $imageId")
+
         val objectKey = Service.s3Service.recipeImageObjectKey(
             userId = userPrincipal.id.toString(),
             recipeId = recipeId.toString(),
@@ -93,7 +104,12 @@ suspend fun RecipeService.uploadImages(
             imageId = imageId,
             uploadUrl = Service.s3Service.getPresignedUrl(
                 operation = PresignedOperation.PUT,
-                objectKey = objectKey
+                objectKey = objectKey,
+                sizeBytes = sizeBytes
+            ),
+            headers = mapOf(
+                "Content-Type" to "image/png",
+                "If-None-Match" to "*"
             )
         )
     }

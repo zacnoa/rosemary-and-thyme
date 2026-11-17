@@ -10,6 +10,7 @@ import java.util.UUID
 
 /**
  * Atomically toggles the private flag of a recipe owned by the authenticated user.
+ * Advances the edit version so stale replacements cannot overwrite the privacy change.
  *
  * @param recipeId identifier of the recipe to update
  * @param userPrincipal authenticated user who must own the recipe
@@ -18,6 +19,7 @@ import java.util.UUID
 fun RecipeService.toggleRecipePrivate(recipeId: UUID, userPrincipal: UserPrincipal) {
     Service.dsl.update(RECIPES)
         .set(RECIPES.IS_PRIVATE, DSL.not(RECIPES.IS_PRIVATE))
+        .set(RECIPES.VERSION, RECIPES.VERSION.plus(1L))
         .where(RECIPES.ID.eq(recipeId))
         .and(RECIPES.USER_ID.eq(userPrincipal.id))
         .execute()
