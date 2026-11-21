@@ -1,0 +1,49 @@
+// RecipeEditorContent.tsx
+import { clientOnly } from "@solidjs/start";
+import { Show } from "solid-js";
+import BasicInformation from "./BasicInformation";
+import Header from "./Header";
+import ImageGallery from "./ImageGallery";
+import Instructions from "./Instructions";
+import Notes from "./Notes";
+import { useRecipe } from "./context/useRecipe";
+import MadeRecipeSlider from "~/components/common/MadeRecipeSlider";
+
+/** Provides the RecipeEditorContent function. */
+export default function RecipeEditorContent() {
+  const { recipe, addBannerImage, madePending, markMade, savePending } = useRecipe()
+
+  const EditorDock = clientOnly(() => import("./EditorDock"))
+  return (
+    <>
+      <div
+        class="w-full overflow-hidden"
+        classList={{ "pointer-events-none": savePending() }}
+        inert={savePending()}
+        aria-busy={savePending()}
+      >
+        <main class="md:max-w-4xl my-4 mx-2 md:mx-auto">
+          <section><Header /></section>
+          <section class="mt-20">
+            <ImageGallery sectionName="banner" images={recipe.heroImagesOrder} addImage={addBannerImage} />
+          </section>
+          <section class="mt-20"><BasicInformation /></section>
+          <section class="mt-20"><Instructions /></section>
+          <section class="mt-20"><Notes /></section>
+          <section class="mt-20 mb-40">
+            <MadeRecipeSlider pending={madePending} onConfirm={markMade} />
+          </section>
+          <section class="fixed bottom-10 left-1/2 -translate-x-1/2 w-[92vw] max-w-md md:w-auto md:max-w-none">
+            <EditorDock />
+          </section>
+        </main>
+      </div>
+      <Show when={savePending()}>
+        <div
+          class="fixed inset-0 z-40 bg-background/20 backdrop-blur-sm pointer-events-auto"
+          aria-hidden="true"
+        />
+      </Show>
+    </>
+  )
+}

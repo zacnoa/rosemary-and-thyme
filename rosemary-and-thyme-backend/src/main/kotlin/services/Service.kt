@@ -1,0 +1,140 @@
+package rosemary_and_thyme.services
+
+import aws.sdk.kotlin.services.s3.S3Client
+import com.resend.Resend
+import org.jooq.DSLContext
+
+/**
+ * Central access point for application services and their shared database, object-storage, and email clients.
+ *
+ * Service operations are organized as extension functions on [RecipeService], [UserService],
+ * [AuthService], [S3Service], [EmailService], and [CronService]. The required clients must be initialized
+ * during application startup before a service operation uses them.
+ */
+object Service {
+    private var dslContextNullable: DSLContext? = null
+    private var s3ClientNullable: S3Client? = null
+    var s3BucketNullable: String? = null
+    private var resendClientNullable: Resend? = null
+    private var emailSenderNullable: String? = null
+    private var frontendUrlNullable: String? = null
+
+    val recipeService = RecipeService()
+    val userService = UserService()
+    val authService = AuthService()
+    val s3Service = S3Service()
+    val emailService = EmailService()
+    val cronService = CronService()
+
+    /**
+     * Shared client used to send transactional emails.
+     *
+     * @throws IllegalStateException if email services have not been initialized
+     */
+    val resendClient: Resend
+        get() = checkNotNull(resendClientNullable) { "Email services have not been initialized" }
+
+    /**
+     * Sender address belonging to the verified Resend domain.
+     *
+     * @throws IllegalStateException if email services have not been initialized
+     */
+    val emailSender: String
+        get() = checkNotNull(emailSenderNullable) { "Email services have not been initialized" }
+
+    /**
+     * Configured frontend base URL used for account email links.
+     *
+     * @throws IllegalStateException if email services have not been initialized
+     */
+    val frontendUrl: String
+        get() = checkNotNull(frontendUrlNullable) { "Email services have not been initialized" }
+
+    /**
+     * The shared jOOQ context used by service operations.
+     *
+     * @throws IllegalStateException if [Service] has not been initialized
+     */
+    val dsl: DSLContext
+        get() = checkNotNull(dslContextNullable) { "Service has not been initialized" }
+
+    /**
+     * The shared S3-compatible client used for Cloudflare R2 operations.
+     *
+     * @throws IllegalStateException if the client has not been initialized
+     */
+    val s3Client: S3Client
+        get() = checkNotNull(s3ClientNullable) { "S3 has not been initialized" }
+
+    /**
+     * Name of the R2 bucket used for recipe images.
+     *
+     * @throws IllegalStateException if the bucket has not been initialized
+     */
+    val s3Bucket: String
+        get() = checkNotNull(s3BucketNullable) { "S3 bucket has not been initialized" }
+
+    /**
+     * Initializes the service layer with the application's jOOQ context.
+     *
+     * @param dsl context used for database access
+     * @throws IllegalStateException if the service layer is already initialized
+     */
+    fun initializeDatabase(dsl: DSLContext) {
+        check(dslContextNullable == null) {
+            "Database has already been initialized"
+        }
+        dslContextNullable = dsl
+    }
+
+    /**
+     * Initializes the object-storage client and its recipe image bucket.
+     *
+     * @param client S3-compatible client configured for Cloudflare R2
+     * @param bucket bucket used to store recipe images
+     * @throws IllegalStateException if the S3 client has already been initialized
+     */
+    fun initializeS3(client: S3Client, bucket: String) {
+        check(s3ClientNullable == null) {
+            "S3 client has already been initialized"
+        }
+        s3ClientNullable = client
+        s3BucketNullable = bucket
+    }
+
+    /**
+     * Stores the email client and configuration supplied by the application module.
+     *
+     * @param client configured Resend client
+     * @param sender sender name and email address
+     * @param frontendUrl frontend base URL for verification and reset links
+     * @throws IllegalStateException if email services have already been initialized
+     */
+    fun initializeEmail(client: Resend, sender: String, frontendUrl: String) {
+        check(resendClientNullable == null) { "Email services have already been initialized" }
+        resendClientNullable = client
+        emailSenderNullable = sender
+        frontendUrlNullable = frontendUrl.trimEnd('/')
+    }
+
+}
+
+
+/** Namespace for recipe-related service operations. */
+class RecipeService
+
+/** Namespace for user account service operations. */
+class UserService
+
+/** Namespace for authentication and session service operations. */
+class AuthService
+
+/** Namespace for Cloudflare R2 object-storage operations. */
+class S3Service
+
+/** Namespace for transactional email operations. */
+class EmailService
+
+/** Namespace for scheduled maintenance operations. */
+class CronService
+
