@@ -59,8 +59,8 @@ fun Route.recipeQueryingRoutes() {
         val items = page.items.mapTo(linkedSetOf()) { item ->
             val imageId = item.imageId ?: return@mapTo item
             val jwt = JWT.create()
-                .withIssuer("rosemary-and-thyme")
-                .withAudience("rosemary-and-thyme-worker")
+                .withIssuer("rosemary_and_thyme")
+                .withAudience("rosemary_and_thyme_worker")
                 .withClaim("userId", item.userId)
                 .withClaim("recipeId", item.recipeId)
                 .withClaim("imageId", imageId)
@@ -79,7 +79,6 @@ fun Route.recipeQueryingRoutes() {
     // Returns a recipe identified by a UUID path parameter.
     get("/{id}") {
         val id = call.requireUuidPathParameter("id")
-        call.response.header(HttpHeaders.CacheControl, "private, no-store")
 
         val userPrincipal = call.sessions.get<UserSession>()?.let { session ->
             Service.authService.authenticateSession(session.cookie)
@@ -87,19 +86,20 @@ fun Route.recipeQueryingRoutes() {
 
         val recipe = Service.recipeService.getRecipeById(id, userPrincipal)
         val jwt= JWT.create()
-        .withIssuer("rosemary-and-thyme")
-        .withAudience("rosemary-and-thyme-worker")
+        .withIssuer("rosemary_and_thyme")
+        .withAudience("rosemary_and_thyme_worker")
         .withClaim("userId", recipe.userId)
         .withClaim("recipeId",id.toString())
         .withExpiresAt(Instant.now().plusSeconds(15*60))
         .sign(CryptoService.jwtAlgorithm)
 
 
+	call.response.header(HttpHeaders.CacheControl, "private, no-store")
         call.response.cookies.append(
             Cookie(
                 name="recipe_media_token",
                 value=jwt,
-                domain=".rosemary-and-thyme.com",
+                domain="rosemary-and-thyme.com",
                 path="/recipe-images/",
                 maxAge = 15*60,
                 secure=true,
