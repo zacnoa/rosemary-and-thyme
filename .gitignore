@@ -1,0 +1,35 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+!.env.*.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+!.dev.vars.*.example
+/.aws/
+
+# Editors and operating systems
+.idea/
+.vscode/
+**/.claude/settings.local.json
+*.iml
+*.ipr
+*.iws
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Build output, coverage, and logs
+build/
+dist/
+coverage/
+*.log
+
+# Shared JavaScript tooling
+node_modules/
+.pnpm-store/
+.vite/
+*.tsbuildinfo
