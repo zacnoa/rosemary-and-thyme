@@ -37,8 +37,6 @@ import java.util.UUID
 // condition ensures that the authenticated user can modify only their own recipes.
 // An authenticated user is authorized to update any recipe they own, so selecting
 // another owned recipe ID is intentional behavior rather than an authorization bypass.
-// Za običan edit endpoint korisnik uvijek može namjerno poslati ID nekog svojeg recepta.
-// Backend ne može znati koji je recept korisnik “mislio” uređivati.
 // Version checks reject stale replacements before they can delete recipe images.
 
 suspend fun RecipeService.putRecipe(
