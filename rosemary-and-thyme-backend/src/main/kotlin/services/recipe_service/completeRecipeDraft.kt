@@ -1,5 +1,7 @@
 package rosemary_and_thyme.services.recipe_service
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.RecipeImageUploadException
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
@@ -20,12 +22,14 @@ import java.util.UUID
  */
 suspend fun RecipeService.completeRecipeDraft(recipeId: UUID, userPrincipal: UserPrincipal) {
 
-    val recipeRecord = Service.dsl.select(RECIPES.CONTENT, RECIPES.IS_DRAFT)
-        .from(RECIPES)
-        .where(RECIPES.ID.eq(recipeId))
-        .and(RECIPES.USER_ID.eq(userPrincipal.id))
-        .fetchOne()
-        ?: throw ResourceNotFoundException("Recipe draft with that id does not exist")
+    val recipeRecord = withContext(Dispatchers.IO) {
+        Service.dsl.select(RECIPES.CONTENT, RECIPES.IS_DRAFT)
+            .from(RECIPES)
+            .where(RECIPES.ID.eq(recipeId))
+            .and(RECIPES.USER_ID.eq(userPrincipal.id))
+            .fetchOne()
+            ?: throw ResourceNotFoundException("Recipe draft with that id does not exist")
+    }
 
     if (recipeRecord.get(RECIPES.IS_DRAFT) != true) return
 
@@ -40,11 +44,13 @@ suspend fun RecipeService.completeRecipeDraft(recipeId: UUID, userPrincipal: Use
         allowAdditionalObjects = false
     )
 
-    Service.dsl.update(RECIPES)
-        .set(RECIPES.IS_DRAFT, false)
-        .where(RECIPES.ID.eq(recipeId))
-        .and(RECIPES.USER_ID.eq(userPrincipal.id))
-        .returning(RECIPES.ID)
-        .fetchOne(RECIPES.ID)
-        ?: throw ResourceNotFoundException("Recipe draft with that id does not exist")
+    withContext(Dispatchers.IO) {
+        Service.dsl.update(RECIPES)
+            .set(RECIPES.IS_DRAFT, false)
+            .where(RECIPES.ID.eq(recipeId))
+            .and(RECIPES.USER_ID.eq(userPrincipal.id))
+            .returning(RECIPES.ID)
+            .fetchOne(RECIPES.ID)
+            ?: throw ResourceNotFoundException("Recipe draft with that id does not exist")
+    }
 }

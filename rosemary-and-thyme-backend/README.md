@@ -15,6 +15,12 @@ Here's a list of features included in this project:
 |------|-------------|
 | Recipe search | Fuzzy title search with cursor pagination and signed image URLs |
 
+## Database calls and coroutines
+
+The backend uses blocking jOOQ/JDBC calls through a HikariCP connection pool. Suspend service functions run their database work in `withContext(Dispatchers.IO)`, so a waiting JDBC call does not occupy a request-processing thread. A database transaction stays inside one IO block. Operations that also call R2 keep those suspend calls outside the JDBC block.
+
+Synchronous database helpers such as `createSession` and `requestEmailVerification` run inside their caller's IO-backed transaction; the OIDC callback moves its standalone `createSession` call to IO. The scheduled account cleanup already runs on IO. Switching dispatchers does not make JDBC non-blocking or increase the connection pool's capacity: database concurrency is still limited by the HikariCP pool and PostgreSQL.
+
 ## Recipe search
 
 `GET /recipe/search?q=lasagna&limit=20` returns a JSON array of `RecipeFeedItem` objects. It matches published recipe titles using PostgreSQL's `pg_trgm` `%` operator and sorts matches by like count, then recipe ID, both descending.

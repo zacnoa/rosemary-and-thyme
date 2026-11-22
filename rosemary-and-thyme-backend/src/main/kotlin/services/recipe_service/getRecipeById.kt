@@ -1,6 +1,8 @@
 package rosemary_and_thyme.services.recipe_service
 
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.models.responses.RecipeContentDTO
@@ -20,7 +22,7 @@ import java.util.UUID
  * those values with image-scoped Worker URLs before sending the response
  * @throws ResourceNotFoundException if the recipe is missing, or private or a draft without viewer ownership
  */
-fun RecipeService.getRecipeById(id: UUID, userPrincipal: UserPrincipal?): RecipeDTO =
+suspend fun RecipeService.getRecipeById(id: UUID, userPrincipal: UserPrincipal?): RecipeDTO = withContext(Dispatchers.IO) {
     Service.dsl.selectFrom(RECIPES)
         .where(RECIPES.ID.eq(id))
         .and(
@@ -62,3 +64,4 @@ fun RecipeService.getRecipeById(id: UUID, userPrincipal: UserPrincipal?): Recipe
                 instructionsOrder = content.instructionsOrder
             )
         } ?: throw ResourceNotFoundException("Recipe with that id does not exist")
+}

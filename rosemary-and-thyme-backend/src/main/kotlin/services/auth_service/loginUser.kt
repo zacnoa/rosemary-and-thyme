@@ -1,5 +1,7 @@
 package rosemary_and_thyme.services.auth_service
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jooq.impl.DSL
 import rosemary_and_thyme.jooq.app_auth.tables.references.USERS
 import rosemary_and_thyme.models.exceptions.AuthenticationException
@@ -19,14 +21,16 @@ import rosemary_and_thyme.services.Service
  * @throws AuthenticationException if the credentials are invalid
  * @throws EmailNotVerified if the credentials are valid but the email is not verified
  */
-fun AuthService.loginUser(email: String, password: String): UserSession {
+suspend fun AuthService.loginUser(email: String, password: String): UserSession {
     val normalizedEmail = email.trim().lowercase()
     val invalidCredentials = "The email or password is not correct"
 
-    val candidate = Service.dsl.select(USERS.ID, USERS.PASSWORD)
-        .from(USERS)
-        .where(USERS.EMAIL.eq(normalizedEmail))
-        .fetchOne() ?: throw AuthenticationException(invalidCredentials)
+    val candidate = withContext(Dispatchers.IO) {
+        Service.dsl.select(USERS.ID, USERS.PASSWORD)
+            .from(USERS)
+            .where(USERS.EMAIL.eq(normalizedEmail))
+            .fetchOne() ?: throw AuthenticationException(invalidCredentials)
+    }
 
     val userId = checkNotNull(candidate.get(USERS.ID)) { "The account is missing an id" }
     val originalHash = candidate.get(USERS.PASSWORD)
@@ -36,22 +40,24 @@ fun AuthService.loginUser(email: String, password: String): UserSession {
         throw AuthenticationException(invalidCredentials)
     }
 
-    return Service.dsl.transactionResult { configuration ->
-        val tx = DSL.using(configuration)
-        val current = tx.select(USERS.PASSWORD, USERS.EMAIL_VERIFIED)
-            .from(USERS)
-            .where(USERS.ID.eq(userId))
-            .forUpdate()
-            .fetchOne() ?: throw AuthenticationException(invalidCredentials)
+    return withContext(Dispatchers.IO) {
+        Service.dsl.transactionResult { configuration ->
+            val tx = DSL.using(configuration)
+            val current = tx.select(USERS.PASSWORD, USERS.EMAIL_VERIFIED)
+                .from(USERS)
+                .where(USERS.ID.eq(userId))
+                .forUpdate()
+                .fetchOne() ?: throw AuthenticationException(invalidCredentials)
 
-        if (current.get(USERS.PASSWORD) != originalHash) {
-            throw AuthenticationException(invalidCredentials)
+            if (current.get(USERS.PASSWORD) != originalHash) {
+                throw AuthenticationException(invalidCredentials)
+            }
+
+            if (current.get(USERS.EMAIL_VERIFIED) != true) {
+                throw EmailNotVerified("Please verify your email address before logging in")
+            }
+
+            createSession(userId, tx)
         }
-
-        if (current.get(USERS.EMAIL_VERIFIED) != true) {
-            throw EmailNotVerified("Please verify your email address before logging in")
-        }
-
-        createSession(userId, tx)
     }
 }

@@ -8,7 +8,7 @@ import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 
 /**
- * Creates a PostgreSQL [DSLContext] backed by a HikariCP pool of up to ten connections.
+ * Creates a PostgreSQL [DSLContext] backed by a HikariCP pool of up to 20 connections.
  *
  * @return the jOOQ context used by the service layer
  */

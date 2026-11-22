@@ -2,6 +2,8 @@ package rosemary_and_thyme.services.recipe_service
 
 import aws.sdk.kotlin.services.s3.listObjectsV2
 import io.ktor.server.plugins.BadRequestException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.models.responses.ImageUploadResponse
@@ -40,12 +42,14 @@ suspend fun RecipeService.uploadImages(
         throw BadRequestException("Every image id must be a valid UUID")
     }
 
-    val recipeRecord = Service.dsl.select(RECIPES.CONTENT, RECIPES.IS_DRAFT)
-        .from(RECIPES)
-        .where(RECIPES.ID.eq(recipeId))
-        .and(RECIPES.USER_ID.eq(userPrincipal.id))
-        .fetchOne()
-        ?: throw ResourceNotFoundException("Recipe with that id does not exist")
+    val recipeRecord = withContext(Dispatchers.IO) {
+        Service.dsl.select(RECIPES.CONTENT, RECIPES.IS_DRAFT)
+            .from(RECIPES)
+            .where(RECIPES.ID.eq(recipeId))
+            .and(RECIPES.USER_ID.eq(userPrincipal.id))
+            .fetchOne()
+            ?: throw ResourceNotFoundException("Recipe with that id does not exist")
+    }
 
     val existingImageIds = deserializeRecipeContent(
         recipeRecord.get(RECIPES.CONTENT).toString()

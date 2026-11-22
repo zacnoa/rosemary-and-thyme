@@ -9,8 +9,6 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.sessions.get
 import io.ktor.server.sessions.sessions
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import rosemary_and_thyme.models.auth.UserSession
 import rosemary_and_thyme.routes.utils.requireUuidPathParameter
 import rosemary_and_thyme.services.Service
@@ -39,9 +37,7 @@ fun Route.recipeQueryingRoutes() {
         } ?: 20
 
         val userPrincipal = call.sessions.get<UserSession>()?.let { session ->
-            withContext(Dispatchers.IO) {
-                Service.authService.authenticateSession(session.cookie)
-            }
+            Service.authService.authenticateSession(session.cookie)
         }
 
         val page = Service.recipeService.searchRecipes(

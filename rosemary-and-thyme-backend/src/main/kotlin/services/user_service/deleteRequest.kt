@@ -1,5 +1,7 @@
 package rosemary_and_thyme.services.user_service
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import rosemary_and_thyme.jooq.app_auth.tables.references.USERS
 import rosemary_and_thyme.models.user.UserPrincipal
 import rosemary_and_thyme.services.Service
@@ -14,7 +16,7 @@ import java.time.OffsetDateTime
  * @return the number of updated rows
  * @throws IllegalStateException if exactly one account was not updated
  */
-fun UserService.requestUserDelete(user: UserPrincipal) =
+suspend fun UserService.requestUserDelete(user: UserPrincipal) = withContext(Dispatchers.IO) {
     
    Service.dsl.update(USERS)
         .set(USERS.DELETION_REQUESTED_AT, OffsetDateTime.now())
@@ -24,6 +26,7 @@ fun UserService.requestUserDelete(user: UserPrincipal) =
                "Expected one affecter row, but updated $affectedRows"
            }
        }
+}
 
 
 
@@ -34,7 +37,7 @@ fun UserService.requestUserDelete(user: UserPrincipal) =
  * @return the number of updated rows
  * @throws IllegalStateException if exactly one account was not updated
  */
-fun UserService.cancelUserDelete(user:UserPrincipal) =
+suspend fun UserService.cancelUserDelete(user:UserPrincipal) = withContext(Dispatchers.IO) {
    Service.dsl.update(USERS)
         .setNull(USERS.DELETION_REQUESTED_AT)
         .where(USERS.ID.eq(user.id))
@@ -43,4 +46,5 @@ fun UserService.cancelUserDelete(user:UserPrincipal) =
                "Expected one affecter row, but updated $affectedRows"
            }
        }
+}
 

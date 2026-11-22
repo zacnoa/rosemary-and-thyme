@@ -1,6 +1,8 @@
 package rosemary_and_thyme.services.auth_service
 
 import io.ktor.server.plugins.BadRequestException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jooq.impl.DSL
 import rosemary_and_thyme.jooq.app_auth.tables.references.EMAIL_VERIFICATION_TOKENS
 import rosemary_and_thyme.jooq.app_auth.tables.references.USERS
@@ -20,53 +22,55 @@ import java.util.UUID
  * @return the new session for the verified account
  * @throws BadRequestException if the code is invalid, expired, used, or the email is already verified
  */
-fun AuthService.confirmEmailVerification(verificationId: String, code: String): UserSession {
+suspend fun AuthService.confirmEmailVerification(verificationId: String, code: String): UserSession {
     val recordId = runCatching { UUID.fromString(verificationId) }.getOrNull()
         ?: throw invalidVerificationCode()
 
-    return Service.dsl.transactionResult { configuration ->
-        val tx = DSL.using(configuration)
-        val verification = tx.select(EMAIL_VERIFICATION_TOKENS.USER_ID, EMAIL_VERIFICATION_TOKENS.TOKEN_HASH)
-            .from(EMAIL_VERIFICATION_TOKENS)
-            .where(EMAIL_VERIFICATION_TOKENS.ID.eq(recordId))
-            .and(EMAIL_VERIFICATION_TOKENS.USED_AT.isNull)
-            .and(EMAIL_VERIFICATION_TOKENS.EXPIRES_AT.gt(OffsetDateTime.now()))
-            .fetchOne() ?: throw invalidVerificationCode()
+    return withContext(Dispatchers.IO) {
+        Service.dsl.transactionResult { configuration ->
+            val tx = DSL.using(configuration)
+            val verification = tx.select(EMAIL_VERIFICATION_TOKENS.USER_ID, EMAIL_VERIFICATION_TOKENS.TOKEN_HASH)
+                .from(EMAIL_VERIFICATION_TOKENS)
+                .where(EMAIL_VERIFICATION_TOKENS.ID.eq(recordId))
+                .and(EMAIL_VERIFICATION_TOKENS.USED_AT.isNull)
+                .and(EMAIL_VERIFICATION_TOKENS.EXPIRES_AT.gt(OffsetDateTime.now()))
+                .fetchOne() ?: throw invalidVerificationCode()
 
-        val userId = checkNotNull(verification.get(EMAIL_VERIFICATION_TOKENS.USER_ID))
-        val tokenHash = CryptoService.sha256("$userId:$code")
-        if (verification.get(EMAIL_VERIFICATION_TOKENS.TOKEN_HASH) != tokenHash) {
-            throw invalidVerificationCode()
+            val userId = checkNotNull(verification.get(EMAIL_VERIFICATION_TOKENS.USER_ID))
+            val tokenHash = CryptoService.sha256("$userId:$code")
+            if (verification.get(EMAIL_VERIFICATION_TOKENS.TOKEN_HASH) != tokenHash) {
+                throw invalidVerificationCode()
+            }
+
+            val user = tx.selectFrom(USERS)
+                .where(USERS.ID.eq(userId))
+                .forUpdate()
+                .fetchOne() ?: throw invalidVerificationCode()
+            if (user.emailVerified == true) throw invalidVerificationCode()
+
+            val now = OffsetDateTime.now()
+            tx.update(EMAIL_VERIFICATION_TOKENS)
+                .set(EMAIL_VERIFICATION_TOKENS.USED_AT, now)
+                .where(EMAIL_VERIFICATION_TOKENS.ID.eq(recordId))
+                .and(EMAIL_VERIFICATION_TOKENS.TOKEN_HASH.eq(tokenHash))
+                .and(EMAIL_VERIFICATION_TOKENS.USED_AT.isNull)
+                .and(EMAIL_VERIFICATION_TOKENS.EXPIRES_AT.gt(now))
+                .returning(EMAIL_VERIFICATION_TOKENS.USER_ID)
+                .fetchOne() ?: throw invalidVerificationCode()
+
+            check(tx.update(USERS)
+                .set(USERS.EMAIL_VERIFIED, true)
+                .where(USERS.ID.eq(userId))
+                .execute() == 1) { "The email address could not be verified" }
+
+            tx.update(EMAIL_VERIFICATION_TOKENS)
+                .set(EMAIL_VERIFICATION_TOKENS.USED_AT, now)
+                .where(EMAIL_VERIFICATION_TOKENS.USER_ID.eq(userId))
+                .and(EMAIL_VERIFICATION_TOKENS.USED_AT.isNull)
+                .execute()
+
+            Service.authService.createSession(userId, tx)
         }
-
-        val user = tx.selectFrom(USERS)
-            .where(USERS.ID.eq(userId))
-            .forUpdate()
-            .fetchOne() ?: throw invalidVerificationCode()
-        if (user.emailVerified == true) throw invalidVerificationCode()
-
-        val now = OffsetDateTime.now()
-        tx.update(EMAIL_VERIFICATION_TOKENS)
-            .set(EMAIL_VERIFICATION_TOKENS.USED_AT, now)
-            .where(EMAIL_VERIFICATION_TOKENS.ID.eq(recordId))
-            .and(EMAIL_VERIFICATION_TOKENS.TOKEN_HASH.eq(tokenHash))
-            .and(EMAIL_VERIFICATION_TOKENS.USED_AT.isNull)
-            .and(EMAIL_VERIFICATION_TOKENS.EXPIRES_AT.gt(now))
-            .returning(EMAIL_VERIFICATION_TOKENS.USER_ID)
-            .fetchOne() ?: throw invalidVerificationCode()
-
-        check(tx.update(USERS)
-            .set(USERS.EMAIL_VERIFIED, true)
-            .where(USERS.ID.eq(userId))
-            .execute() == 1) { "The email address could not be verified" }
-
-        tx.update(EMAIL_VERIFICATION_TOKENS)
-            .set(EMAIL_VERIFICATION_TOKENS.USED_AT, now)
-            .where(EMAIL_VERIFICATION_TOKENS.USER_ID.eq(userId))
-            .and(EMAIL_VERIFICATION_TOKENS.USED_AT.isNull)
-            .execute()
-
-        Service.authService.createSession(userId, tx)
     }
 }
 

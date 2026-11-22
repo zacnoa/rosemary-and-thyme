@@ -1,6 +1,8 @@
 package rosemary_and_thyme.services.auth_service
 
 import io.ktor.server.plugins.BadRequestException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import rosemary_and_thyme.jooq.app_auth.tables.references.EMAIL_VERIFICATION_TOKENS
@@ -81,37 +83,39 @@ fun AuthService.requestEmailVerification(
  * @return delivery details for the replacement code
  * @throws BadRequestException if the verification ID does not identify a pending registration
  */
-fun AuthService.resendEmailVerification(verificationId: String): EmailVerificationDelivery {
+suspend fun AuthService.resendEmailVerification(verificationId: String): EmailVerificationDelivery {
     val recordId = runCatching { UUID.fromString(verificationId) }.getOrNull()
         ?: throw BadRequestException("Invalid email verification ID")
 
-    return Service.dsl.transactionResult { configuration ->
-        val tx = DSL.using(configuration)
-        val token = tx.selectFrom(EMAIL_VERIFICATION_TOKENS)
-            .where(EMAIL_VERIFICATION_TOKENS.ID.eq(recordId))
-            .and(EMAIL_VERIFICATION_TOKENS.USED_AT.isNull)
-            .forUpdate()
-            .fetchOne() ?: throw BadRequestException("Invalid email verification ID")
+    return withContext(Dispatchers.IO) {
+        Service.dsl.transactionResult { configuration ->
+            val tx = DSL.using(configuration)
+            val token = tx.selectFrom(EMAIL_VERIFICATION_TOKENS)
+                .where(EMAIL_VERIFICATION_TOKENS.ID.eq(recordId))
+                .and(EMAIL_VERIFICATION_TOKENS.USED_AT.isNull)
+                .forUpdate()
+                .fetchOne() ?: throw BadRequestException("Invalid email verification ID")
 
-        val userId = checkNotNull(token.userId)
-        val email = tx.select(USERS.EMAIL)
-            .from(USERS)
-            .where(USERS.ID.eq(userId))
-            .and(USERS.EMAIL_VERIFIED.eq(false))
-            .fetchOne(USERS.EMAIL)
-            ?: throw BadRequestException("Invalid email verification ID")
+            val userId = checkNotNull(token.userId)
+            val email = tx.select(USERS.EMAIL)
+                .from(USERS)
+                .where(USERS.ID.eq(userId))
+                .and(USERS.EMAIL_VERIFIED.eq(false))
+                .fetchOne(USERS.EMAIL)
+                ?: throw BadRequestException("Invalid email verification ID")
 
-        var code = CryptoService.generateEmailVerificationCode()
-        var codeHash = CryptoService.sha256("$userId:$code")
-        while (codeHash == token.tokenHash) {
-            code = CryptoService.generateEmailVerificationCode()
-            codeHash = CryptoService.sha256("$userId:$code")
+            var code = CryptoService.generateEmailVerificationCode()
+            var codeHash = CryptoService.sha256("$userId:$code")
+            while (codeHash == token.tokenHash) {
+                code = CryptoService.generateEmailVerificationCode()
+                codeHash = CryptoService.sha256("$userId:$code")
+            }
+
+            token.tokenHash = codeHash
+            token.expiresAt = OffsetDateTime.now().plusMinutes(VERIFICATION_CODE_VALIDITY_MINUTES)
+            check(token.update() == 1) { "The email verification code could not be replaced" }
+
+            EmailVerificationDelivery(email, recordId.toString(), code)
         }
-
-        token.tokenHash = codeHash
-        token.expiresAt = OffsetDateTime.now().plusMinutes(VERIFICATION_CODE_VALIDITY_MINUTES)
-        check(token.update() == 1) { "The email verification code could not be replaced" }
-
-        EmailVerificationDelivery(email, recordId.toString(), code)
     }
 }
