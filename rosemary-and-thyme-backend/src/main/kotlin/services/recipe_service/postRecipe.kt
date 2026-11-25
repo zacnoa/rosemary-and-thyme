@@ -1,5 +1,7 @@
 package rosemary_and_thyme.services.recipe_service
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jooq.JSONB
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.BadRecipeFormat
@@ -21,7 +23,7 @@ import java.time.OffsetDateTime
  * @throws BadRecipeFormat if the recipe fails validation
  * @throws IllegalStateException if a required shared service has not been initialized
  */
-fun RecipeService.postRecipe(
+suspend fun RecipeService.postRecipe(
     request: PostRecipeRequest,
     userPrincipal: UserPrincipal,
 ): PostRecipeResponse {
@@ -45,23 +47,25 @@ fun RecipeService.postRecipe(
     )
 
     //TODO("better  handling of DataAccessException")
-    val recipeId = checkNotNull(
-        Service.dsl.insertInto(RECIPES)
-            .set(RECIPES.TITLE, request.title)
-            .set(RECIPES.DESCRIPTION, request.description)
-            .set(RECIPES.SIDE_NOTES, request.sideNote)
-            .set(RECIPES.DIFFICULTY, request.difficulty)
-            .set(RECIPES.PORTIONS, request.portions)
-            .set(RECIPES.COOK_TIME, request.cookTime)
-            .set(RECIPES.CREATED_DATE, OffsetDateTime.now())
-            .set(RECIPES.USER_ID, userPrincipal.id)
-            .set(RECIPES.USER_NAME, userPrincipal.username)
-            .set(RECIPES.CONTENT, contentJson)
-            .returning(RECIPES.ID)
-            .fetchSingle()
-            .get(RECIPES.ID)
-    ) {
-        "The database did not return an id for the inserted recipe"
+    val recipeId = withContext(Dispatchers.IO) {
+        checkNotNull(
+            Service.dsl.insertInto(RECIPES)
+                .set(RECIPES.TITLE, request.title)
+                .set(RECIPES.DESCRIPTION, request.description)
+                .set(RECIPES.SIDE_NOTES, request.sideNote)
+                .set(RECIPES.DIFFICULTY, request.difficulty)
+                .set(RECIPES.PORTIONS, request.portions)
+                .set(RECIPES.COOK_TIME, request.cookTime)
+                .set(RECIPES.CREATED_DATE, OffsetDateTime.now())
+                .set(RECIPES.USER_ID, userPrincipal.id)
+                .set(RECIPES.USER_NAME, userPrincipal.username)
+                .set(RECIPES.CONTENT, contentJson)
+                .returning(RECIPES.ID)
+                .fetchSingle()
+                .get(RECIPES.ID)
+        ) {
+            "The database did not return an id for the inserted recipe"
+        }
     }
     
     return PostRecipeResponse(recipeId = recipeId.toString())

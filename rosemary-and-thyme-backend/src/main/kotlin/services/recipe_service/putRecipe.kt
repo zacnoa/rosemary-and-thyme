@@ -1,5 +1,7 @@
 package rosemary_and_thyme.services.recipe_service
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jooq.JSONB
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.BadRecipeFormat
@@ -37,8 +39,6 @@ import java.util.UUID
 // condition ensures that the authenticated user can modify only their own recipes.
 // An authenticated user is authorized to update any recipe they own, so selecting
 // another owned recipe ID is intentional behavior rather than an authorization bypass.
-// Za običan edit endpoint korisnik uvijek može namjerno poslati ID nekog svojeg recepta.
-// Backend ne može znati koji je recept korisnik “mislio” uređivati.
 // Version checks reject stale replacements before they can delete recipe images.
 
 suspend fun RecipeService.putRecipe(
@@ -52,14 +52,16 @@ suspend fun RecipeService.putRecipe(
         throw BadRecipeFormat(message = errorMessages.joinToString(separator = "\n"))
     }
 
-    val previousRecord = Service.dsl.select(RECIPES.CONTENT, RECIPES.VERSION)
-        .from(RECIPES)
-        .where(RECIPES.ID.eq(recipeId))
-        .and(RECIPES.USER_ID.eq(userPrincipal.id))
-        .fetchOne()
-        ?: throw ResourceNotFoundException(
-            "Recipe does not exist or does not belong to the authenticated user"
-        )
+    val previousRecord = withContext(Dispatchers.IO) {
+        Service.dsl.select(RECIPES.CONTENT, RECIPES.VERSION)
+            .from(RECIPES)
+            .where(RECIPES.ID.eq(recipeId))
+            .and(RECIPES.USER_ID.eq(userPrincipal.id))
+            .fetchOne()
+            ?: throw ResourceNotFoundException(
+                "Recipe does not exist or does not belong to the authenticated user"
+            )
+    }
 
     if (previousRecord.get(RECIPES.VERSION) != request.version) {
         throw RecipeVersionConflict(
@@ -99,24 +101,26 @@ suspend fun RecipeService.putRecipe(
         serializeRecipeContent(content)
     )
 
-    val version = Service.dsl.update(RECIPES)
-        .set(RECIPES.TITLE, request.title)
-        .set(RECIPES.DESCRIPTION, request.description)
-        .set(RECIPES.SIDE_NOTES, request.sideNote)
-        .set(RECIPES.DIFFICULTY, request.difficulty)
-        .set(RECIPES.PORTIONS, request.portions)
-        .set(RECIPES.COOK_TIME, request.cookTime)
-        .set(RECIPES.IS_PRIVATE, request.isPrivate)
-        .set(RECIPES.CONTENT, contentJson)
-        .set(RECIPES.VERSION, RECIPES.VERSION.plus(1L))
-        .where(RECIPES.ID.eq(recipeId))
-        .and(RECIPES.USER_ID.eq(userPrincipal.id))
-        .and(RECIPES.VERSION.eq(request.version))
-        .returning(RECIPES.VERSION)
-        .fetchOne(RECIPES.VERSION)
-        ?: throw RecipeVersionConflict(
-            "The recipe changed or is no longer available. Reload it before saving again."
-        )
+    val version = withContext(Dispatchers.IO) {
+        Service.dsl.update(RECIPES)
+            .set(RECIPES.TITLE, request.title)
+            .set(RECIPES.DESCRIPTION, request.description)
+            .set(RECIPES.SIDE_NOTES, request.sideNote)
+            .set(RECIPES.DIFFICULTY, request.difficulty)
+            .set(RECIPES.PORTIONS, request.portions)
+            .set(RECIPES.COOK_TIME, request.cookTime)
+            .set(RECIPES.IS_PRIVATE, request.isPrivate)
+            .set(RECIPES.CONTENT, contentJson)
+            .set(RECIPES.VERSION, RECIPES.VERSION.plus(1L))
+            .where(RECIPES.ID.eq(recipeId))
+            .and(RECIPES.USER_ID.eq(userPrincipal.id))
+            .and(RECIPES.VERSION.eq(request.version))
+            .returning(RECIPES.VERSION)
+            .fetchOne(RECIPES.VERSION)
+            ?: throw RecipeVersionConflict(
+                "The recipe changed or is no longer available. Reload it before saving again."
+            )
+    }
 
     Service.s3Service.deleteImages(removedImageObjectKeys)
 

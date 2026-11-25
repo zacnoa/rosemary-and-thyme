@@ -4,10 +4,10 @@ import kotlinx.serialization.Serializable
 
 /**
  * Serializable representation of a recipe returned by the API.
- * Ingredients and instructions are stored in maps, while identifier collections preserve
- * image membership and display order.
+ * Ingredients and instructions are stored in maps, while the order lists retain their identifiers.
  *
- * @property imageIds identifiers used to derive media URLs without exposing storage object keys
+ * @property imageIds image IDs mapped to temporary Worker URLs in the HTTP detail response;
+ * stored recipe content and write requests keep image IDs as a set
  * @property version current edit version to send with the next recipe replacement
  */
 @Serializable
@@ -23,9 +23,9 @@ data class RecipeDTO(
     val cookTime: String,
     val difficulty: Short,
     val sideNote: String,
-    val createdDate:String,
+    val createdDate: String,
 
-    val imageIds: Set<String>,
+    val imageIds: Map<String, String>,
     val ingredients: Map<String, IngredientDTO>,
     val instructions: Map<String, InstructionDTO>,
 

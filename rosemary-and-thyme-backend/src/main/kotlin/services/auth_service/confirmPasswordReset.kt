@@ -1,6 +1,8 @@
 package rosemary_and_thyme.services.auth_service
 
 import io.ktor.server.plugins.BadRequestException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jooq.impl.DSL
 import rosemary_and_thyme.jooq.app_auth.tables.references.PASSWORD_RESET_TOKENS
 import rosemary_and_thyme.jooq.app_auth.tables.references.SESSIONS
@@ -21,7 +23,7 @@ import java.time.OffsetDateTime
  * @return the newly created session for the token's owner
  * @throws BadRequestException if the token is invalid, expired, used, or the password is invalid
  */
-fun AuthService.confirmPasswordReset(token: String, newPassword: String): UserSession {
+suspend fun AuthService.confirmPasswordReset(token: String, newPassword: String): UserSession {
     if (!Regex("^[A-Za-z0-9_-]{43}$").matches(token)) {
         throw invalidResetToken()
     }
@@ -30,52 +32,56 @@ fun AuthService.confirmPasswordReset(token: String, newPassword: String): UserSe
     }
     val tokenHash = CryptoService.sha256(token)
 
-    val userId = Service.dsl.select(PASSWORD_RESET_TOKENS.USER_ID)
-        .from(PASSWORD_RESET_TOKENS)
-        .where(PASSWORD_RESET_TOKENS.TOKEN_HASH.eq(tokenHash))
-        .and(PASSWORD_RESET_TOKENS.USED_AT.isNull)
-        .and(PASSWORD_RESET_TOKENS.EXPIRES_AT.gt(OffsetDateTime.now()))
-        .fetchOne(PASSWORD_RESET_TOKENS.USER_ID)
-        ?: throw invalidResetToken()
+    val userId = withContext(Dispatchers.IO) {
+        Service.dsl.select(PASSWORD_RESET_TOKENS.USER_ID)
+            .from(PASSWORD_RESET_TOKENS)
+            .where(PASSWORD_RESET_TOKENS.TOKEN_HASH.eq(tokenHash))
+            .and(PASSWORD_RESET_TOKENS.USED_AT.isNull)
+            .and(PASSWORD_RESET_TOKENS.EXPIRES_AT.gt(OffsetDateTime.now()))
+            .fetchOne(PASSWORD_RESET_TOKENS.USER_ID)
+            ?: throw invalidResetToken()
+    }
 
     val passwordHash = CryptoService.hashPassword(newPassword)
 
-    return Service.dsl.transactionResult { configuration ->
-        val tx = DSL.using(configuration)
+    return withContext(Dispatchers.IO) {
+        Service.dsl.transactionResult { configuration ->
+            val tx = DSL.using(configuration)
 
-        // Serialize different reset tokens for the same user before touching token rows.
-        tx.select(USERS.ID).from(USERS).where(USERS.ID.eq(userId))
-            .forUpdate().fetchOne() ?: throw invalidResetToken()
+            // Serialize different reset tokens for the same user before touching token rows.
+            tx.select(USERS.ID).from(USERS).where(USERS.ID.eq(userId))
+                .forUpdate().fetchOne() ?: throw invalidResetToken()
 
-        val now = OffsetDateTime.now()
+            val now = OffsetDateTime.now()
 
-        tx.update(PASSWORD_RESET_TOKENS)
-            .set(PASSWORD_RESET_TOKENS.USED_AT, now)
-            .where(PASSWORD_RESET_TOKENS.TOKEN_HASH.eq(tokenHash))
-            .and(PASSWORD_RESET_TOKENS.USED_AT.isNull)
-            .and(PASSWORD_RESET_TOKENS.EXPIRES_AT.gt(now))
-            .returning(PASSWORD_RESET_TOKENS.USER_ID)
-            .fetchOne() ?: throw invalidResetToken()
+            tx.update(PASSWORD_RESET_TOKENS)
+                .set(PASSWORD_RESET_TOKENS.USED_AT, now)
+                .where(PASSWORD_RESET_TOKENS.TOKEN_HASH.eq(tokenHash))
+                .and(PASSWORD_RESET_TOKENS.USED_AT.isNull)
+                .and(PASSWORD_RESET_TOKENS.EXPIRES_AT.gt(now))
+                .returning(PASSWORD_RESET_TOKENS.USER_ID)
+                .fetchOne() ?: throw invalidResetToken()
 
-        check(
-            tx.update(USERS)
-                .set(USERS.PASSWORD, passwordHash)
-                .where(USERS.ID.eq(userId))
-                .execute() == 1
-        ) { "The password could not be updated" }
+            check(
+                tx.update(USERS)
+                    .set(USERS.PASSWORD, passwordHash)
+                    .where(USERS.ID.eq(userId))
+                    .execute() == 1
+            ) { "The password could not be updated" }
 
-        tx.update(PASSWORD_RESET_TOKENS)
-            .set(PASSWORD_RESET_TOKENS.USED_AT, now)
-            .where(PASSWORD_RESET_TOKENS.USER_ID.eq(userId))
-            .and(PASSWORD_RESET_TOKENS.USED_AT.isNull)
-            .execute()
-        tx.update(SESSIONS)
-            .set(SESSIONS.REVOKED, true)
-            .where(SESSIONS.USER_ID.eq(userId))
-            .and(SESSIONS.REVOKED.eq(false))
-            .execute()
+            tx.update(PASSWORD_RESET_TOKENS)
+                .set(PASSWORD_RESET_TOKENS.USED_AT, now)
+                .where(PASSWORD_RESET_TOKENS.USER_ID.eq(userId))
+                .and(PASSWORD_RESET_TOKENS.USED_AT.isNull)
+                .execute()
+            tx.update(SESSIONS)
+                .set(SESSIONS.REVOKED, true)
+                .where(SESSIONS.USER_ID.eq(userId))
+                .and(SESSIONS.REVOKED.eq(false))
+                .execute()
 
-        Service.authService.createSession(userId, tx)
+            Service.authService.createSession(userId, tx)
+        }
     }
 }
 

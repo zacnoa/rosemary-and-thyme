@@ -15,6 +15,12 @@ Here's a list of features included in this project:
 |------|-------------|
 | Recipe search | Fuzzy title search with cursor pagination and signed image URLs |
 
+## Database calls and coroutines
+
+The backend uses blocking jOOQ/JDBC calls through a HikariCP connection pool. Suspend service functions run their database work in `withContext(Dispatchers.IO)`, so a waiting JDBC call does not occupy a request-processing thread. A database transaction stays inside one IO block. Operations that also call R2 keep those suspend calls outside the JDBC block.
+
+Synchronous database helpers such as `createSession` and `requestEmailVerification` run inside their caller's IO-backed transaction; the OIDC callback moves its standalone `createSession` call to IO. The scheduled account cleanup already runs on IO. Switching dispatchers does not make JDBC non-blocking or increase the connection pool's capacity: database concurrency is still limited by the HikariCP pool and PostgreSQL.
+
 ## Recipe search
 
 `GET /recipe/search?q=lasagna&limit=20` returns a JSON array of `RecipeFeedItem` objects. It matches published recipe titles using PostgreSQL's `pg_trgm` `%` operator and sorts matches by like count, then recipe ID, both descending.
@@ -31,16 +37,19 @@ The response includes `X-Next-Cursor` only when there is another page. The curso
 
 ### Recipe images
 
-When a recipe has images, the search response includes its first `imageId` and an `imageUrl`. Set `RECIPE_MEDIA_WORKER_URL` to the Worker's HTTPS origin. It defaults to `https://rosemary-and-thyme.com`.
+When a recipe has images, the search response includes its first `imageId` and an `imageUrl`. `GET /recipe/{id}` returns `imageIds` as an object that maps each image ID to its own signed Worker URL:
 
-A media Worker is required to serve these URLs. It must verify the RS256 signature, issuer `rosemary-and-thyme`, audience `rosemary-and-thyme-worker`, and expiration before serving an image. Both token types expire after 15 minutes.
+```json
+{
+  "imageIds": {
+    "74668f2a-45f0-4328-9f7d-1d234567890a": "https://rosemary-and-thyme.com/recipe-images/{userId}/{recipeId}/74668f2a-45f0-4328-9f7d-1d234567890a?token={jwt}"
+  }
+}
+```
 
-| Token source | Required path match |
-|--------------|---------------------|
-| Search URL `/recipe-images/{userId}/{recipeId}/{imageId}?token=…` | `userId`, `recipeId`, and `imageId` |
-| Detail cookie `recipe_media_token` | `userId` and `recipeId` |
+The image ID remains the stable identifier used by `heroImagesOrder` and instruction image references. The URL is temporary and is not stored in the database. Stored recipe content and recipe write requests still use an `imageIds` array. Set `RECIPE_MEDIA_WORKER_URL` to the Worker's HTTPS origin; it defaults to `https://rosemary-and-thyme.com`.
 
-A search URL token must include `imageId`. The browser sends the detail cookie only to hosts under `rosemary-and-thyme.com` on `/recipe-images/` paths. `GET /recipe/{id}` issues the cookie after checking visibility. A private recipe or draft is visible only to its authenticated owner, and other viewers receive `404 Not Found`. Exclude the `token` query parameter from request logs.
+Both search and detail URLs have the path `/recipe-images/{userId}/{recipeId}/{imageId}?token=…`. Each token expires after 15 minutes and contains `userId`, `recipeId`, and `imageId`. The Worker verifies the RS256 signature, issuer `rosemary_and_thyme`, audience `rosemary_and_thyme_worker`, expiration, and exact match of all three claims to the path before reading the image. The detail endpoint checks recipe visibility before issuing URLs. A private recipe or draft is visible only to its authenticated owner; other viewers receive `404 Not Found`. The detail endpoint no longer issues a media cookie. Exclude the `token` query parameter from request logs.
 
 ## Recipe image uploads
 

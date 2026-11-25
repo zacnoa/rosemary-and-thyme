@@ -1,6 +1,8 @@
 package rosemary_and_thyme.services.auth_service
 
 import io.ktor.server.plugins.BadRequestException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jooq.impl.DSL
 import rosemary_and_thyme.jooq.app_auth.tables.references.USERS
 import rosemary_and_thyme.models.exceptions.UserAlreadyExists
@@ -21,7 +23,7 @@ import rosemary_and_thyme.services.Service
  * @throws BadRequestException if the normalized email is blank or too long
  * @throws UserAlreadyExists if the insert conflicts with an existing user
  */
-fun AuthService.registerUser(username: String, password: String, email: String): EmailVerificationDelivery {
+suspend fun AuthService.registerUser(username: String, password: String, email: String): EmailVerificationDelivery {
     val normalizedUsername = username.trim().lowercase()
     val normalizedEmail = email.trim().lowercase()
 
@@ -31,19 +33,21 @@ fun AuthService.registerUser(username: String, password: String, email: String):
 
     val hashedPassword = CryptoService.hashPassword(password)
 
-    return Service.dsl.transactionResult { configuration ->
-        val tx = DSL.using(configuration)
-        tx.insertInto(USERS)
-            .set(USERS.USERNAME, username)
-            .set(USERS.USERNAME_NORMALIZED, normalizedUsername)
-            .set(USERS.EMAIL, normalizedEmail)
-            .set(USERS.PASSWORD, hashedPassword)
-            .onConflict()
-            .doNothing()
-            .execute().also { affectedRows ->
-                if (affectedRows == 0) throw UserAlreadyExists("A user with that username already exists")
-            }
+    return withContext(Dispatchers.IO) {
+        Service.dsl.transactionResult { configuration ->
+            val tx = DSL.using(configuration)
+            tx.insertInto(USERS)
+                .set(USERS.USERNAME, username)
+                .set(USERS.USERNAME_NORMALIZED, normalizedUsername)
+                .set(USERS.EMAIL, normalizedEmail)
+                .set(USERS.PASSWORD, hashedPassword)
+                .onConflict()
+                .doNothing()
+                .execute().also { affectedRows ->
+                    if (affectedRows == 0) throw UserAlreadyExists("A user with that username already exists")
+                }
 
-        Service.authService.requestEmailVerification(normalizedEmail, tx)
+            Service.authService.requestEmailVerification(normalizedEmail, tx)
+        }
     }
 }

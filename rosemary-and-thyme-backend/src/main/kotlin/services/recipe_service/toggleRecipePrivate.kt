@@ -1,5 +1,7 @@
 package rosemary_and_thyme.services.recipe_service
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jooq.impl.DSL
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
@@ -16,18 +18,20 @@ import java.util.UUID
  * @param userPrincipal authenticated user who must own the recipe
  * @throws ResourceNotFoundException if the recipe does not exist or is owned by another user
  */
-fun RecipeService.toggleRecipePrivate(recipeId: UUID, userPrincipal: UserPrincipal) {
-    Service.dsl.update(RECIPES)
-        .set(RECIPES.IS_PRIVATE, DSL.not(RECIPES.IS_PRIVATE))
-        .set(RECIPES.VERSION, RECIPES.VERSION.plus(1L))
-        .where(RECIPES.ID.eq(recipeId))
-        .and(RECIPES.USER_ID.eq(userPrincipal.id))
-        .execute()
-        .also { affectedRows ->
-            if (affectedRows != 1) {
-                throw ResourceNotFoundException(
-                    "Recipe does not exist or does not belong to the authenticated user"
-                )
+suspend fun RecipeService.toggleRecipePrivate(recipeId: UUID, userPrincipal: UserPrincipal) {
+    withContext(Dispatchers.IO) {
+        Service.dsl.update(RECIPES)
+            .set(RECIPES.IS_PRIVATE, DSL.not(RECIPES.IS_PRIVATE))
+            .set(RECIPES.VERSION, RECIPES.VERSION.plus(1L))
+            .where(RECIPES.ID.eq(recipeId))
+            .and(RECIPES.USER_ID.eq(userPrincipal.id))
+            .execute()
+            .also { affectedRows ->
+                if (affectedRows != 1) {
+                    throw ResourceNotFoundException(
+                        "Recipe does not exist or does not belong to the authenticated user"
+                    )
+                }
             }
-        }
+    }
 }

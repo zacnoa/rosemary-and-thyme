@@ -1,5 +1,7 @@
 package rosemary_and_thyme.services.recipe_service
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import rosemary_and_thyme.jooq.public.tables.references.RECIPES
 import rosemary_and_thyme.models.exceptions.ResourceNotFoundException
 import rosemary_and_thyme.models.user.UserPrincipal
@@ -19,14 +21,16 @@ import java.util.UUID
  * @throws IllegalStateException if R2 reports an image deletion failure after the recipe was deleted
  */
 suspend fun RecipeService.deleteRecipe(recipeId: UUID, userPrincipal: UserPrincipal) {
-    val content = Service.dsl.deleteFrom(RECIPES)
-        .where(RECIPES.ID.eq(recipeId))
-        .and(RECIPES.USER_ID.eq(userPrincipal.id))
-        .returning(RECIPES.CONTENT)
-        .fetchOne(RECIPES.CONTENT)
-        ?: throw ResourceNotFoundException(
-            "Recipe does not exist or does not belong to the authenticated user"
-        )
+    val content = withContext(Dispatchers.IO) {
+        Service.dsl.deleteFrom(RECIPES)
+            .where(RECIPES.ID.eq(recipeId))
+            .and(RECIPES.USER_ID.eq(userPrincipal.id))
+            .returning(RECIPES.CONTENT)
+            .fetchOne(RECIPES.CONTENT)
+            ?: throw ResourceNotFoundException(
+                "Recipe does not exist or does not belong to the authenticated user"
+            )
+    }
 
     val objectKeys = deserializeRecipeContent(content.data()).imageIds
         .mapTo(mutableSetOf()) { imageId ->

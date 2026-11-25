@@ -8,6 +8,8 @@ import io.ktor.server.response.respondRedirect
 import io.ktor.server.sessions.sessions
 import io.ktor.server.sessions.set
 import io.ktor.utils.io.ExperimentalKtorApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import rosemary_and_thyme.models.exceptions.AuthenticationException
 import rosemary_and_thyme.services.Service
 import rosemary_and_thyme.services.auth_service.createSession
@@ -49,7 +51,9 @@ suspend fun Application.configureOIDC() {
                     subject = userInfo.subject,
                     email = email,
                 )
-                val session=Service.authService.createSession(user.id)
+                val session = withContext(Dispatchers.IO) {
+                    Service.authService.createSession(user.id)
+                }
                 call.sessions.set(session)
                 
                 call.respondRedirect(frontendUrl)
