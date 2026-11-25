@@ -11,12 +11,13 @@ export default function RecipeProvider(props: ParentProps<{ id: string }>) {
       throw new Error("")
     }
     const body = (await response.json()) as Omit<RecipeDTO, "images"> & {
-      images?: Record<string, string>
+      images: Record<string, string>
     }
+
     return {
       ...body,
       images: Object.fromEntries(
-        Object.entries(body.images ?? {}).map(([id, url]) => [id, { id, url }])
+        Object.entries(body.images).map(([id, url]) => [id, { id, url }])
       ),
     }
   })
