@@ -8,6 +8,7 @@ import rosemary_and_thyme.models.responses.InstructionDTO
  * Client-editable data used to replace an existing recipe.
  * Resource identity, ownership, creation time, and counters are controlled by the server.
  *
+ * @property cookTime display text for the cooking duration, up to 20 characters
  * @property imageIds complete set of image identifiers retained by the replacement recipe
  * @property version recipe version read by the client; stale replacements are rejected
  */
@@ -25,5 +26,6 @@ data class PutRecipeRequest(
     val instructionsOrder: List<String>,
     val heroImagesOrder: List<String>,
     val isPrivate: Boolean,
-    val version: Long
+    val version: Long,
+    val cookTime: String
 )

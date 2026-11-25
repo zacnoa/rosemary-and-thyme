@@ -61,13 +61,13 @@ Each URL expires after ten minutes and signs the exact file size, which must be 
 
 ## Recipe updates
 
+`POST /recipe` and `PUT /recipe/{id}` require `cookTime` as a string of up to 20 characters, such as `"45m"` or `"2h 30m"`. Recipe detail and search results return the saved text as `cookTime`.
+
 `GET /recipe/{id}` includes the recipe's current `version`. Send that value as a required field in the JSON body of `PUT /recipe/{id}`. A successful replacement increments the version and returns `200 OK` with `{"version":2}`.
 
 A stale version returns `409 Conflict` with problem type `problem/recipe-version-conflict` before checking images in R2. The final database update also checks the version atomically, so a conflicting save that occurs during image verification is rejected before deleting any images. Reload the recipe before submitting another replacement.
 
 `PATCH /recipe/{id}/private` also increments the edit version because replacements include the privacy flag. Likes and the made counter do not change it.
-
-For an existing database, apply the `ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS version bigint NOT NULL DEFAULT 1` statement from `db/schema.sql`, then run `./gradlew jooqCodegen` to generate the `VERSION` field. Docker's schema initialization runs only when creating a new database volume.
 
 ## Recipe interactions and deletion
 

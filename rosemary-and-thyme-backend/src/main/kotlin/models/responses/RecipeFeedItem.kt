@@ -22,6 +22,7 @@ data class RecipeFeedItem(
     val description: String,
     val difficulty: Short,
     val portions: Short,
+    val cookTime: String,
     val createdDate: String,
     val timesMade: Int,
     val imageId: String?,

@@ -44,6 +44,7 @@ fun RecipeService.getRecipeById(id: UUID, userPrincipal: UserPrincipal?): Recipe
                 likes=getRecipeLikeCount(id),
                 timesMade = checkNotNull(record.get(RECIPES.TIMES_MADE)),
                 portions=checkNotNull(record.get(RECIPES.PORTIONS)),
+                cookTime = checkNotNull(record.get(RECIPES.COOK_TIME)),
                 difficulty = checkNotNull(record.get(RECIPES.DIFFICULTY)),
                 sideNote=checkNotNull(record.get(RECIPES.SIDE_NOTES)),
                 createdDate=record.get(RECIPES.CREATED_DATE).toString(),

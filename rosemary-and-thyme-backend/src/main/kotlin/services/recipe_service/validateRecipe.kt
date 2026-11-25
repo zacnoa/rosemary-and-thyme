@@ -18,6 +18,7 @@ fun RecipeService.validateRecipe(request: PostRecipeRequest): List<String> =
         title = request.title,
         description = request.description,
         difficulty = request.difficulty,
+        cookTime = request.cookTime,
         imageIds = request.imageIds,
         ingredients = request.ingredients,
         instructions = request.instructions,
@@ -37,6 +38,7 @@ fun RecipeService.validateRecipe(request: PutRecipeRequest): List<String> {
         title = request.title,
         description = request.description,
         difficulty = request.difficulty,
+        cookTime = request.cookTime,
         imageIds = request.imageIds,
         ingredients = request.ingredients,
         instructions = request.instructions,
@@ -54,6 +56,7 @@ fun RecipeService.validateRecipe(request: PutRecipeRequest): List<String> {
  * @param title recipe title
  * @param description recipe description
  * @param difficulty difficulty value to validate
+ * @param cookTime cooking-duration text
  * @param imageIds identifiers of images associated with the recipe
  * @param ingredients ingredients keyed by their identifiers
  * @param instructions instructions keyed by their identifiers
@@ -66,6 +69,7 @@ private fun validateRecipeData(
     title: String,
     description: String,
     difficulty: Short,
+    cookTime: String,
     imageIds: Set<String>,
     ingredients: Map<String, IngredientDTO>,
     instructions: Map<String, InstructionDTO>,
@@ -120,6 +124,9 @@ private fun validateRecipeData(
     }
     if (description.length > 1000) {
         messages.add("The description should not be longer than 1000 characters")
+    }
+    if (cookTime.length > 20) {
+        messages.add("The cook time should not be longer than 20 characters")
     }
 
     val instructionIds = instructions.keys

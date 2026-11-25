@@ -83,6 +83,7 @@ suspend fun RecipeService.searchRecipes(
             RECIPES.DESCRIPTION,
             RECIPES.DIFFICULTY,
             RECIPES.PORTIONS,
+            RECIPES.COOK_TIME,
             RECIPES.CREATED_DATE,
             RECIPES.TIMES_MADE,
             firstImageId
@@ -121,6 +122,7 @@ suspend fun RecipeService.searchRecipes(
             description = checkNotNull(row.get(RECIPES.DESCRIPTION)),
             difficulty = checkNotNull(row.get(RECIPES.DIFFICULTY)),
             portions = checkNotNull(row.get(RECIPES.PORTIONS)),
+            cookTime = checkNotNull(row.get(RECIPES.COOK_TIME)),
             createdDate = checkNotNull(row.get(RECIPES.CREATED_DATE)).toString(),
             timesMade = checkNotNull(row.get(RECIPES.TIMES_MADE)),
             imageId = row.get(firstImageId),

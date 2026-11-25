@@ -52,6 +52,7 @@ fun RecipeService.postRecipe(
             .set(RECIPES.SIDE_NOTES, request.sideNote)
             .set(RECIPES.DIFFICULTY, request.difficulty)
             .set(RECIPES.PORTIONS, request.portions)
+            .set(RECIPES.COOK_TIME, request.cookTime)
             .set(RECIPES.CREATED_DATE, OffsetDateTime.now())
             .set(RECIPES.USER_ID, userPrincipal.id)
             .set(RECIPES.USER_NAME, userPrincipal.username)
