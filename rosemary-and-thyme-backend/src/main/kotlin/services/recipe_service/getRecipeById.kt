@@ -22,47 +22,48 @@ import java.util.UUID
  * those values with image-scoped Worker URLs before sending the response
  * @throws ResourceNotFoundException if the recipe is missing, or private or a draft without viewer ownership
  */
-suspend fun RecipeService.getRecipeById(id: UUID, userPrincipal: UserPrincipal?): RecipeDTO = withContext(Dispatchers.IO) {
-    Service.dsl.selectFrom(RECIPES)
-        .where(RECIPES.ID.eq(id))
-        .and(
-            if (userPrincipal == null) {
-                RECIPES.IS_PRIVATE.eq(false)
-                    .and(RECIPES.IS_DRAFT.eq(false))
-            } else {
-                RECIPES.IS_PRIVATE.eq(false)
-                    .and(RECIPES.IS_DRAFT.eq(false))
-                    .or(RECIPES.USER_ID.eq(userPrincipal.id))
-            }
-        )
-        .fetchOne()?.let { record ->
-            val content = Json.decodeFromString<RecipeContentDTO>(checkNotNull(record.get(RECIPES.CONTENT)).data())
-
-            RecipeDTO(
-                id = record.get(RECIPES.ID).toString(),
-                userId = record.get(RECIPES.USER_ID).toString(),
-                userName = checkNotNull(record.get(RECIPES.USER_NAME)),
-                title = checkNotNull(record.get(RECIPES.TITLE)),
-                description = checkNotNull(record.get(RECIPES.DESCRIPTION)),
-                likes = getRecipeLikeCount(id),
-                timesMade = checkNotNull(record.get(RECIPES.TIMES_MADE)),
-                portions = checkNotNull(record.get(RECIPES.PORTIONS)),
-                cookTime = checkNotNull(record.get(RECIPES.COOK_TIME)),
-                difficulty = checkNotNull(record.get(RECIPES.DIFFICULTY)),
-                sideNote = checkNotNull(record.get(RECIPES.SIDE_NOTES)),
-                createdDate = record.get(RECIPES.CREATED_DATE).toString(),
-                isPrivate = checkNotNull(record.get(RECIPES.IS_PRIVATE)),
-                version = checkNotNull(record.get(RECIPES.VERSION)),
-
-
-                //here we map id to id because of the Map<String,String> type of imageIds.
-                // Later we map it again but we  issue a jwt signed url for every imageId.
-                imageIds = content.imageIds.associateWith { id -> id },
-                ingredients = content.ingredients,
-                instructions = content.instructions,
-                ingredientsOrder = content.ingredientsOrder,
-                heroImagesOrder = content.heroImagesOrder,
-                instructionsOrder = content.instructionsOrder
+suspend fun RecipeService.getRecipeById(id: UUID, userPrincipal: UserPrincipal?): RecipeDTO =
+    withContext(Dispatchers.IO) {
+        Service.dsl.selectFrom(RECIPES)
+            .where(RECIPES.ID.eq(id))
+            .and(
+                if (userPrincipal == null) {
+                    RECIPES.IS_PRIVATE.eq(false)
+                        .and(RECIPES.IS_DRAFT.eq(false))
+                } else {
+                    RECIPES.IS_PRIVATE.eq(false)
+                        .and(RECIPES.IS_DRAFT.eq(false))
+                        .or(RECIPES.USER_ID.eq(userPrincipal.id))
+                }
             )
-        } ?: throw ResourceNotFoundException("Recipe with that id does not exist")
-}
+            .fetchOne()?.let { record ->
+                val content = Json.decodeFromString<RecipeContentDTO>(checkNotNull(record.get(RECIPES.CONTENT)).data())
+
+                RecipeDTO(
+                    id = record.get(RECIPES.ID).toString(),
+                    userId = record.get(RECIPES.USER_ID).toString(),
+                    userName = checkNotNull(record.get(RECIPES.USER_NAME)),
+                    title = checkNotNull(record.get(RECIPES.TITLE)),
+                    description = checkNotNull(record.get(RECIPES.DESCRIPTION)),
+                    likes = getRecipeLikeCount(id),
+                    timesMade = checkNotNull(record.get(RECIPES.TIMES_MADE)),
+                    portions = checkNotNull(record.get(RECIPES.PORTIONS)),
+                    cookTime = checkNotNull(record.get(RECIPES.COOK_TIME)),
+                    difficulty = checkNotNull(record.get(RECIPES.DIFFICULTY)),
+                    sideNote = checkNotNull(record.get(RECIPES.SIDE_NOTES)),
+                    createdDate = record.get(RECIPES.CREATED_DATE).toString(),
+                    isPrivate = checkNotNull(record.get(RECIPES.IS_PRIVATE)),
+                    version = checkNotNull(record.get(RECIPES.VERSION)),
+
+
+                    //here we map id to id because of the Map<String,String> type of imageIds.
+                    // Later we map it again but we  issue a jwt signed url for every imageId.
+                    images = content.imageIds.associateWith { id -> id },
+                    ingredients = content.ingredients,
+                    instructions = content.instructions,
+                    ingredientsOrder = content.ingredientsOrder,
+                    heroImagesOrder = content.heroImagesOrder,
+                    instructionsOrder = content.instructionsOrder
+                )
+            } ?: throw ResourceNotFoundException("Recipe with that id does not exist")
+    }

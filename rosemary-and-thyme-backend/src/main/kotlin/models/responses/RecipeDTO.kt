@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
  * Serializable representation of a recipe returned by the API.
  * Ingredients and instructions are stored in maps, while the order lists retain their identifiers.
  *
- * @property imageIds image IDs mapped to temporary Worker URLs in the HTTP detail response;
+ * @property images image IDs mapped to temporary Worker URLs in the HTTP detail response;
  * stored recipe content and write requests keep image IDs as a set
  * @property version current edit version to send with the next recipe replacement
  */
@@ -25,7 +25,7 @@ data class RecipeDTO(
     val sideNote: String,
     val createdDate: String,
 
-    val imageIds: Map<String, String>,
+    val images: Map<String, String>,
     val ingredients: Map<String, IngredientDTO>,
     val instructions: Map<String, InstructionDTO>,
 

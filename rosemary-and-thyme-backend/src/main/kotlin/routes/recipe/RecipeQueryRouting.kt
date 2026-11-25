@@ -81,7 +81,7 @@ fun Route.recipeQueryingRoutes() {
         val recipe = Service.recipeService.getRecipeById(recipeId, userPrincipal)
         // Replace placeholder image IDs with image-scoped Worker URLs.
         val recipeWithUrls = recipe.copy(
-            imageIds = recipe.imageIds.keys.associateWith { id ->
+            images = recipe.images.keys.associateWith { id ->
                 Service.s3Service.mediaAccessToken(
                     workerBaseUrl = workerBaseUrl,
                     recipeId = recipeId.toString(),
