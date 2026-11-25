@@ -1,6 +1,6 @@
 import { createStore} from "solid-js"
 
-interface RecipeDTO {
+export interface RecipeDTO {
   id: string,
   userId: string,
   userName: string,
@@ -10,7 +10,7 @@ interface RecipeDTO {
   timesMade: number,
   portions: number,
   difficulty: number,
-  cook_time: string,
+  cookTime: string,
   sideNote: string,
   createdDate: string,
 
@@ -84,7 +84,7 @@ export function createRecipeStore(initialRecipe: RecipeDTO) {
   }
   const setCookTime = (cookTime: string) => {
     setRecipe(draft => {
-      draft.cook_time = cookTime
+      draft.cookTime = cookTime
     })
   }
   const setSideNote = (sideNote: string) => {
